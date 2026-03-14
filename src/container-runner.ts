@@ -122,6 +122,10 @@ function buildVolumeMounts(
     '.claude',
   );
   fs.mkdirSync(groupSessionsDir, { recursive: true });
+  // Container runs as node (uid=1000); host creates dirs as root (mode 755).
+  // Without write permission on .claude/, the container cannot create files
+  // like session-env, causing permission denied errors on startup.
+  fs.chmodSync(groupSessionsDir, 0o777);
   const settingsFile = path.join(groupSessionsDir, 'settings.json');
   if (!fs.existsSync(settingsFile)) {
     fs.writeFileSync(
