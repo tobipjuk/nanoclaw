@@ -71,3 +71,12 @@ export const TRIGGER_PATTERN = new RegExp(
 // Uses system timezone by default
 export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// Colon-separated list of git repo paths to auto-push after container commits.
+// Defaults to /root/nanoclaw-config if the directory exists.
+export const GIT_AUTOPUSH_DIRS: string[] = (
+  process.env.GIT_AUTOPUSH_DIRS || '/root/nanoclaw-config'
+)
+  .split(':')
+  .map((p) => p.trim())
+  .filter(Boolean);

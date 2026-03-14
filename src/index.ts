@@ -4,6 +4,7 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
+  GIT_AUTOPUSH_DIRS,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
   TIMEZONE,
@@ -57,6 +58,7 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
+import { startGitAutopush } from './git-autopush.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -597,6 +599,9 @@ async function main(): Promise<void> {
     logger.fatal('No channels connected');
     process.exit(1);
   }
+
+  // Auto-push commits made by containers to configured git repos
+  startGitAutopush(GIT_AUTOPUSH_DIRS);
 
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
