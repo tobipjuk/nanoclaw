@@ -148,6 +148,12 @@ export function initDatabase(): void {
   db = new Database(dbPath);
   createSchema(db);
 
+  // Clear stale session IDs from the previous run. Claude's conversation
+  // sessions don't survive a process restart, so any persisted IDs would
+  // cause "No conversation found with session ID" errors on the first
+  // message to each group after startup.
+  db.prepare('DELETE FROM sessions').run();
+
   // Migrate from JSON files if they exist
   migrateJsonState();
 }
