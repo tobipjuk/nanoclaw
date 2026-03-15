@@ -246,6 +246,11 @@ function buildContainerArgs(
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
   }
 
+  // Pass through optional third-party API keys
+  if (process.env.TODOIST_API_KEY) {
+    args.push('-e', `TODOIST_API_KEY=${process.env.TODOIST_API_KEY}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 
