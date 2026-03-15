@@ -11,6 +11,10 @@ API key is in `$TODOIST_API_KEY`. Base URL: `https://api.todoist.com/api/v1`.
 **Tobi's user ID:** `2893711`
 **Orion project inbox section ID:** `6g7cgvqxCVXpQH6X`
 
+## Answering "what tasks do I have today" (or similar)
+
+Always include **both** overdue tasks and tasks due today — not just today's date. Overdue tasks are still actionable and should always be shown alongside today's tasks.
+
 ## Get Tobi's tasks
 
 Most tasks do not have an assignee set (including all recurring tasks), so **always query all tasks** — do not filter by `assignee_id`. Tobi is the only user so all tasks belong to him.
