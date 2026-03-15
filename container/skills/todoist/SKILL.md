@@ -41,6 +41,8 @@ curl -s "https://api.todoist.com/api/v1/tasks/TASK_ID" \
 
 ## Create a task
 
+**Before creating**, if the conversation already shows the task was just created (API returned an `id`), do **not** create it again — trust the prior result even if a subsequent GET returns null (Todoist has eventual consistency). Only create if there is no prior record of it being created in this session.
+
 Do **not** set a due date unless the user explicitly asks for one.
 
 ```bash
