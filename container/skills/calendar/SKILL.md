@@ -30,7 +30,7 @@ TOKEN=$(curl -s -X POST \
   -d "grant_type=refresh_token" \
   -d "client_id=$MICROSOFT_CLIENT_ID" \
   --data-urlencode "refresh_token=$MICROSOFT_REFRESH_TOKEN" \
-  -d "scope=https://graph.microsoft.com/Calendars.Read" \
+  -d "scope=https://graph.microsoft.com/Calendars.ReadWrite" \
   | jq -r '.access_token')
 ```
 
@@ -74,9 +74,29 @@ START="2026-03-20T00:00:00Z"
 END="2026-03-21T00:00:00Z"
 ```
 
+## Create an event
+
+```bash
+CALENDAR_ID="<calendar id>"  # use Personal ID for non-Family events
+
+curl -s -X POST \
+  "https://graph.microsoft.com/v1.0/me/calendars/${CALENDAR_ID}/events" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Event title",
+    "start": { "dateTime": "2026-03-20T10:00:00", "timeZone": "Europe/London" },
+    "end":   { "dateTime": "2026-03-20T11:00:00", "timeZone": "Europe/London" },
+    "isAllDay": false
+  }' | jq '{id, subject, start: .start.dateTime, end: .end.dateTime}'
+```
+
+For all-day events, set `"isAllDay": true` and use `"dateTime": "2026-03-20T00:00:00"` for both start and end (end = next day).
+
+Always confirm with the user before creating an event (show subject, date, time). Report success with the event subject and time.
+
 ## Guidelines
 
-- Read-only — never create, update, or delete events
 - Always query both calendars and present as two sections: **Personal** and **Family**
 - Always present times in Europe/London (handled by the Prefer header)
 - For all-day events, omit the time
