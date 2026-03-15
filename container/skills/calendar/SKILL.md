@@ -1,6 +1,6 @@
 ---
 name: calendar
-description: Read Tobi's Outlook calendar via Microsoft Graph API — get today's events, events for a date range, or check availability. Use whenever asked about schedule, meetings, what's on, or free time.
+description: Read Tobi's Outlook calendar via Microsoft Graph API — get today's events, events for a date range, or check availability. Use whenever asked about schedule, meetings, what's on, or free time. Always shows both Personal and Family calendars as separate sections.
 allowed-tools: Bash(curl*)
 ---
 
@@ -12,6 +12,15 @@ Credentials are injected as environment variables — never log or expose them:
 - `MICROSOFT_USER_EMAIL`
 
 All times are returned in Europe/London timezone.
+
+## Calendars
+
+Always query **both** calendars and present them as separate sections in your reply:
+
+| Calendar | ID |
+|----------|----|
+| Personal (Calendar) | `AQMkADAwATM3ZmYAZS1kYzhlLTBhNzktMDACLTAwCgBGAAADYk92BkgEeUeUqzBrFircawcAzi6ftpS1V06t_yfsuiJn0wAAAgEGAAAAzi6ftpS1V06t_yfsuiJn0wAAAlKHAAAA` |
+| Family | `AQMkADAwATM3ZmYAZS1kYzhlLTBhNzktMDACLTAwCgBGAAADYk92BkgEeUeUqzBrFircawcAzi6ftpS1V06t_yfsuiJn0wAAAgEGAAAAzi6ftpS1V06t_yfsuiJn0wAIHe-u0AAAAA==` |
 
 ## Get an access token
 
@@ -25,46 +34,51 @@ TOKEN=$(curl -s -X POST \
   | jq -r '.access_token')
 ```
 
-## Get today's events
+## Get events for a date range (both calendars)
+
+Run this for each calendar ID, then present results in two labelled sections:
 
 ```bash
+PERSONAL_ID="AQMkADAwATM3ZmYAZS1kYzhlLTBhNzktMDACLTAwCgBGAAADYk92BkgEeUeUqzBrFircawcAzi6ftpS1V06t_yfsuiJn0wAAAgEGAAAAzi6ftpS1V06t_yfsuiJn0wAAAlKHAAAA"
+FAMILY_ID="AQMkADAwATM3ZmYAZS1kYzhlLTBhNzktMDACLTAwCgBGAAADYk92BkgEeUeUqzBrFircawcAzi6ftpS1V06t_yfsuiJn0wAAAgEGAAAAzi6ftpS1V06t_yfsuiJn0wAIHe-u0AAAAA=="
+
+START=$(date -u +%Y-%m-%dT00:00:00Z)
+END=$(date -u -d '+1 day' +%Y-%m-%dT00:00:00Z)  # adjust range as needed
+
+# Personal calendar
+curl -s "https://graph.microsoft.com/v1.0/me/calendars/${PERSONAL_ID}/calendarView?\$orderby=start/dateTime&startDateTime=${START}&endDateTime=${END}&\$select=subject,start,end,isAllDay,location" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Prefer: outlook.timezone=\"Europe/London\"" \
+  | jq '[.value[] | {subject, start: .start.dateTime[:16], end: .end.dateTime[:16], isAllDay, location: .location.displayName}]'
+
+# Family calendar
+curl -s "https://graph.microsoft.com/v1.0/me/calendars/${FAMILY_ID}/calendarView?\$orderby=start/dateTime&startDateTime=${START}&endDateTime=${END}&\$select=subject,start,end,isAllDay,location" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Prefer: outlook.timezone=\"Europe/London\"" \
+  | jq '[.value[] | {subject, start: .start.dateTime[:16], end: .end.dateTime[:16], isAllDay, location: .location.displayName}]'
+```
+
+## Date range examples
+
+```bash
+# Today
 START=$(date -u +%Y-%m-%dT00:00:00Z)
 END=$(date -u -d '+1 day' +%Y-%m-%dT00:00:00Z)
 
-curl -s "https://graph.microsoft.com/v1.0/me/calendarView?\$orderby=start/dateTime&startDateTime=${START}&endDateTime=${END}&\$select=subject,start,end,isAllDay,location,bodyPreview" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Prefer: outlook.timezone=\"Europe/London\"" \
-  | jq '[.value[] | {
-      subject,
-      start: .start.dateTime[:16],
-      end:   .end.dateTime[:16],
-      isAllDay,
-      location: .location.displayName
-    }]'
-```
-
-## Get events for a date range
-
-Replace `START` and `END` with ISO dates, e.g. this week:
-
-```bash
+# This week
 START=$(date -u +%Y-%m-%dT00:00:00Z)
 END=$(date -u -d '+7 days' +%Y-%m-%dT00:00:00Z)
-# ... same curl as above
-```
 
-## Check a specific day
-
-```bash
+# Specific day
 START="2026-03-20T00:00:00Z"
 END="2026-03-21T00:00:00Z"
-# ... same curl as above
 ```
 
 ## Guidelines
 
 - Read-only — never create, update, or delete events
-- Always present times in Europe/London (already handled by the Prefer header)
+- Always query both calendars and present as two sections: **Personal** and **Family**
+- Always present times in Europe/London (handled by the Prefer header)
 - For all-day events, omit the time
-- If asked "am I free?" check for conflicts in the relevant window and give a direct answer
+- If asked "am I free?" check both calendars for conflicts
 - Omit location if empty
