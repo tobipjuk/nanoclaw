@@ -69,7 +69,8 @@ export {
  */
 async function transcribeAudio(filePath: string): Promise<string | null> {
   const apiKey =
-    process.env.OPENAI_API_KEY || readEnvFile(['OPENAI_API_KEY']).OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY ||
+    readEnvFile(['OPENAI_API_KEY']).OPENAI_API_KEY;
   if (!apiKey) {
     logger.warn('OPENAI_API_KEY not set — voice transcription skipped');
     return null;
@@ -82,11 +83,14 @@ async function transcribeAudio(filePath: string): Promise<string | null> {
     form.append('file', blob, 'voice.ogg');
     form.append('model', 'whisper-1');
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    });
+    const response = await fetch(
+      'https://api.openai.com/v1/audio/transcriptions',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      },
+    );
 
     if (!response.ok) {
       logger.warn({ status: response.status }, 'Whisper API error');
