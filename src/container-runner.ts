@@ -61,6 +61,21 @@ interface VolumeMount {
   readonly: boolean;
 }
 
+// Recursively make a memory directory (and all its contents) writable by the
+// container's node user (uid 1000). Called before each container start so new
+// files created by root on the host are accessible on the next run.
+function chmodMemoryDir(dirPath: string): void {
+  fs.chmodSync(dirPath, 0o777);
+  for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      chmodMemoryDir(fullPath);
+    } else {
+      fs.chmodSync(fullPath, 0o666);
+    }
+  }
+}
+
 function buildVolumeMounts(
   group: RegisteredGroup,
   isMain: boolean,
@@ -191,8 +206,9 @@ function buildVolumeMounts(
   fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true });
   fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true });
   // Container runs as node (uid=1000); host creates dirs as root (mode 755).
-  // Without write permission on input/, the container cannot unlink processed
-  // files, causing the agent-runner to loop forever on the same file.
+  // Without write permission, the container cannot create/update IPC files.
+  fs.chmodSync(path.join(groupIpcDir, 'messages'), 0o777);
+  fs.chmodSync(path.join(groupIpcDir, 'tasks'), 0o777);
   fs.chmodSync(path.join(groupIpcDir, 'input'), 0o777);
   mounts.push({
     hostPath: groupIpcDir,
@@ -231,6 +247,17 @@ function buildVolumeMounts(
       group.name,
       isMain,
     );
+    // Ensure memory subdirectories in writable mounts are accessible to the
+    // container's node user (uid 1000). Root-owned dirs would otherwise block
+    // writes, silently breaking Orion's ability to update its own memory.
+    for (const mount of validatedMounts) {
+      if (!mount.readonly) {
+        const memDir = path.join(mount.hostPath, 'memory');
+        if (fs.existsSync(memDir)) {
+          chmodMemoryDir(memDir);
+        }
+      }
+    }
     mounts.push(...validatedMounts);
   }
 
