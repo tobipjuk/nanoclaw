@@ -13,7 +13,13 @@ API key is in `$TODOIST_API_KEY`. Base URL: `https://api.todoist.com/api/v1`.
 
 ## Answering "what tasks do I have today" (or similar)
 
-Always include **both** overdue tasks and tasks due today — not just today's date. Overdue tasks are still actionable and should always be shown alongside today's tasks.
+Run the pre-built script — do not write your own query:
+
+```bash
+bash /workspace/project/container/skills/todoist/todoist-due.sh
+```
+
+This returns all overdue **and** due-today tasks as TSV (id, content, due_date, is_recurring, priority).
 
 ## Get Tobi's tasks
 
