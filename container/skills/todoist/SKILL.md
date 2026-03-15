@@ -15,16 +15,24 @@ API key is in `$TODOIST_API_KEY`. Base URL: `https://api.todoist.com/api/v1`.
 
 Most tasks do not have an assignee set (including all recurring tasks), so **always query all tasks** — do not filter by `assignee_id`. Tobi is the only user so all tasks belong to him.
 
-The API paginates (default 50/page). Use `next_cursor` to fetch all pages when you need a complete list (e.g. checking due dates).
+The API paginates at 50 tasks/page. There are ~250 tasks total, so **always paginate through all pages** when checking due dates — tasks due today or overdue may be on any page.
 
 ```bash
-# First page
-curl -s "https://api.todoist.com/api/v1/tasks" \
-  -H "Authorization: Bearer $TODOIST_API_KEY" | jq '[.results[] | {id, content, due: .due.date, is_recurring: .due.is_recurring, priority}]'
+# Fetch all tasks across all pages and filter by due date
+RESULT=""; CURSOR=""
+while true; do
+  URL="https://api.todoist.com/api/v1/tasks${CURSOR:+?cursor=$CURSOR}"
+  PAGE=$(curl -s "$URL" -H "Authorization: Bearer $TODOIST_API_KEY")
+  RESULT="$RESULT$(echo "$PAGE" | jq -r '.results[] | [.id, .content, (.due.date // ""), (.due.is_recurring // false | tostring), (.priority | tostring)] | @tsv')"$'\n'
+  CURSOR=$(echo "$PAGE" | jq -r '.next_cursor // empty')
+  [ -z "$CURSOR" ] && break
+done
+echo "$RESULT" | awk -F'\t' '$3 != ""' | sort -t$'\t' -k3
+```
 
-# Next page (use next_cursor value from previous response)
-curl -s "https://api.todoist.com/api/v1/tasks?cursor=CURSOR" \
-  -H "Authorization: Bearer $TODOIST_API_KEY" | jq '[.results[] | {id, content, due: .due.date, is_recurring: .due.is_recurring, priority}]'
+To filter for today only (replace TODAY with date):
+```bash
+echo "$RESULT" | awk -F'\t' '$3 == "2026-03-15"'
 ```
 
 ## Filter by project
