@@ -57,7 +57,11 @@ const ATTACHMENTS_CONTAINER_DIR = '/workspace/attachments';
  */
 const ATTACHMENT_PATH_MARKER = '[attachment-path:';
 
-export { ATTACHMENTS_HOST_DIR, ATTACHMENTS_CONTAINER_DIR, ATTACHMENT_PATH_MARKER };
+export {
+  ATTACHMENTS_HOST_DIR,
+  ATTACHMENTS_CONTAINER_DIR,
+  ATTACHMENT_PATH_MARKER,
+};
 
 export class TelegramChannel implements Channel {
   name = 'telegram';
@@ -120,7 +124,10 @@ export class TelegramChannel implements Channel {
       );
       return containerPath;
     } catch (err) {
-      logger.warn({ err, fileId, chatJid, msgId }, 'Failed to download Telegram attachment');
+      logger.warn(
+        { err, fileId, chatJid, msgId },
+        'Failed to download Telegram attachment',
+      );
       return null;
     }
   }
