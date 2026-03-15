@@ -26,6 +26,7 @@ import {
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
+import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 import {
@@ -267,16 +268,16 @@ function buildContainerArgs(
     args.push('-e', `TODOIST_API_KEY=${process.env.TODOIST_API_KEY}`);
   }
 
-  // Microsoft Graph API credentials (Outlook access)
-  for (const key of [
+  // Microsoft Graph API credentials (Outlook access) — read from .env file
+  // since nanoclaw deliberately does not load .env into process.env
+  const msVars = readEnvFile([
     'MICROSOFT_CLIENT_ID',
     'MICROSOFT_CLIENT_SECRET',
     'MICROSOFT_REFRESH_TOKEN',
     'MICROSOFT_USER_EMAIL',
-  ]) {
-    if (process.env[key]) {
-      args.push('-e', `${key}=${process.env[key]}`);
-    }
+  ]);
+  for (const [key, value] of Object.entries(msVars)) {
+    args.push('-e', `${key}=${value}`);
   }
 
   // Runtime-specific args for host gateway resolution
