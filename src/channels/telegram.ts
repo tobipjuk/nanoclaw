@@ -63,6 +63,44 @@ export {
   ATTACHMENT_PATH_MARKER,
 };
 
+/**
+ * Transcribe an audio file using the OpenAI Whisper API.
+ * Returns the transcribed text, or null if transcription fails or the API key is not set.
+ */
+async function transcribeAudio(filePath: string): Promise<string | null> {
+  const apiKey =
+    process.env.OPENAI_API_KEY || readEnvFile(['OPENAI_API_KEY']).OPENAI_API_KEY;
+  if (!apiKey) {
+    logger.warn('OPENAI_API_KEY not set — voice transcription skipped');
+    return null;
+  }
+
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    const blob = new Blob([fileBuffer], { type: 'audio/ogg' });
+    const form = new FormData();
+    form.append('file', blob, 'voice.ogg');
+    form.append('model', 'whisper-1');
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+
+    if (!response.ok) {
+      logger.warn({ status: response.status }, 'Whisper API error');
+      return null;
+    }
+
+    const data = (await response.json()) as { text?: string };
+    return data.text?.trim() || null;
+  } catch (err) {
+    logger.warn({ err, filePath }, 'Voice transcription failed');
+    return null;
+  }
+}
+
 export class TelegramChannel implements Channel {
   name = 'telegram';
 
@@ -321,7 +359,32 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
-    this.bot.on('message:voice', (ctx) => storeNonText(ctx, '[Voice message]'));
+    this.bot.on('message:voice', async (ctx) => {
+      const voice = ctx.message.voice;
+      const msgId = ctx.message.message_id.toString();
+      const chatJid = `tg:${ctx.chat.id}`;
+      if (voice) {
+        const containerPath = await this.downloadAttachment(
+          voice.file_id,
+          chatJid,
+          msgId,
+          'voice.ogg',
+        );
+        if (containerPath) {
+          // Derive the host path from the container path for transcription
+          const hostPath = containerPath.replace(
+            ATTACHMENTS_CONTAINER_DIR,
+            ATTACHMENTS_HOST_DIR,
+          );
+          const transcription = await transcribeAudio(hostPath);
+          if (transcription) {
+            storeNonText(ctx, `[Voice: ${transcription}]`);
+            return;
+          }
+        }
+      }
+      storeNonText(ctx, '[Voice message]');
+    });
     this.bot.on('message:audio', (ctx) => storeNonText(ctx, '[Audio]'));
     this.bot.on('message:sticker', (ctx) => {
       const emoji = ctx.message.sticker?.emoji || '';
