@@ -11,18 +11,20 @@ API key is in `$TODOIST_API_KEY`. Base URL: `https://api.todoist.com/api/v1`.
 **Tobi's user ID:** `2893711`
 **Orion project inbox section ID:** `6g7cgvqxCVXpQH6X`
 
-## Get tasks assigned to Tobi
+## Get Tobi's tasks
+
+Most tasks do not have an assignee set (including all recurring tasks), so **always query all tasks** — do not filter by `assignee_id`. Tobi is the only user so all tasks belong to him.
+
+The API paginates (default 50/page). Use `next_cursor` to fetch all pages when you need a complete list (e.g. checking due dates).
 
 ```bash
-curl -s "https://api.todoist.com/api/v1/tasks?assignee_id=2893711" \
-  -H "Authorization: Bearer $TODOIST_API_KEY" | jq '[.results[] | {id, content, description, due: .due.string, priority}]'
-```
-
-## Get all active tasks (any assignee)
-
-```bash
+# First page
 curl -s "https://api.todoist.com/api/v1/tasks" \
-  -H "Authorization: Bearer $TODOIST_API_KEY" | jq '[.results[] | {id, content, assignee_id, due: .due.string, priority}]'
+  -H "Authorization: Bearer $TODOIST_API_KEY" | jq '[.results[] | {id, content, due: .due.date, is_recurring: .due.is_recurring, priority}]'
+
+# Next page (use next_cursor value from previous response)
+curl -s "https://api.todoist.com/api/v1/tasks?cursor=CURSOR" \
+  -H "Authorization: Bearer $TODOIST_API_KEY" | jq '[.results[] | {id, content, due: .due.date, is_recurring: .due.is_recurring, priority}]'
 ```
 
 ## Filter by project
