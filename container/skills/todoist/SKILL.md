@@ -34,9 +34,10 @@ done
 echo "$RESULT" | awk -F'\t' '$3 != ""' | sort -t$'\t' -k3
 ```
 
-To filter for today only (replace TODAY with date):
+To get today's tasks **and** overdue (use this for any "what do I have today" query):
 ```bash
-echo "$RESULT" | awk -F'\t' '$3 == "2026-03-15"'
+TODAY=$(date +%F)
+echo "$RESULT" | awk -F'\t' -v today="$TODAY" '$3 != "" && $3 <= today'
 ```
 
 ## Filter by project
