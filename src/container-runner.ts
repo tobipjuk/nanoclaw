@@ -61,15 +61,20 @@ interface VolumeMount {
   readonly: boolean;
 }
 
-// Recursively make a memory directory (and all its contents) writable by the
-// container's node user (uid 1000). Called before each container start so new
+// Dirs that are large or irrelevant — skip when chmod-ing writable mounts
+const CHMOD_SKIP_DIRS = new Set(['.git', '.venv', 'node_modules', '__pycache__']);
+
+// Recursively make a directory (and all its contents) writable by the
+// container's node user (uid 1000). Called before each container start so
 // files created by root on the host are accessible on the next run.
-function chmodMemoryDir(dirPath: string): void {
+// Skips large/irrelevant subdirectories to keep startup fast.
+function chmodWritable(dirPath: string): void {
   fs.chmodSync(dirPath, 0o777);
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    if (entry.isDirectory() && CHMOD_SKIP_DIRS.has(entry.name)) continue;
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      chmodMemoryDir(fullPath);
+      chmodWritable(fullPath);
     } else {
       fs.chmodSync(fullPath, 0o666);
     }
@@ -247,15 +252,11 @@ function buildVolumeMounts(
       group.name,
       isMain,
     );
-    // Ensure memory subdirectories in writable mounts are accessible to the
-    // container's node user (uid 1000). Root-owned dirs would otherwise block
-    // writes, silently breaking Orion's ability to update its own memory.
+    // Ensure writable mounts are accessible to the container's node user
+    // (uid 1000). Root-owned dirs/files would otherwise block reads and writes.
     for (const mount of validatedMounts) {
-      if (!mount.readonly) {
-        const memDir = path.join(mount.hostPath, 'memory');
-        if (fs.existsSync(memDir)) {
-          chmodMemoryDir(memDir);
-        }
+      if (!mount.readonly && fs.existsSync(mount.hostPath)) {
+        chmodWritable(mount.hostPath);
       }
     }
     mounts.push(...validatedMounts);
