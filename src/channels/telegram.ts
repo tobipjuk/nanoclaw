@@ -1,4 +1,7 @@
+import fs from 'fs';
 import https from 'https';
+import os from 'os';
+import path from 'path';
 import { Api, Bot } from 'grammy';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
@@ -41,6 +44,21 @@ async function sendTelegramMessage(
   }
 }
 
+/** Root directory on the host where Telegram attachments are downloaded */
+const ATTACHMENTS_HOST_DIR = path.join(os.homedir(), 'nanoclaw-attachments');
+
+/** Corresponding path inside the agent container */
+const ATTACHMENTS_CONTAINER_DIR = '/workspace/attachments';
+
+/**
+ * Marker embedded in message content to carry the container-visible attachment path
+ * through the database without a schema change.
+ * Format: [attachment-path:/workspace/attachments/...]
+ */
+const ATTACHMENT_PATH_MARKER = '[attachment-path:';
+
+export { ATTACHMENTS_HOST_DIR, ATTACHMENTS_CONTAINER_DIR, ATTACHMENT_PATH_MARKER };
+
 export class TelegramChannel implements Channel {
   name = 'telegram';
 
@@ -53,6 +71,58 @@ export class TelegramChannel implements Channel {
   constructor(botToken: string, opts: TelegramChannelOpts) {
     this.botToken = botToken;
     this.opts = opts;
+    // Ensure the attachments directory exists on startup
+    fs.mkdirSync(ATTACHMENTS_HOST_DIR, { recursive: true });
+  }
+
+  /**
+   * Download a Telegram file by file_id and save it to the host attachments directory.
+   * Returns the container-visible path, or null if the download fails.
+   */
+  private async downloadAttachment(
+    fileId: string,
+    chatJid: string,
+    msgId: string,
+    filename: string,
+  ): Promise<string | null> {
+    if (!this.bot) return null;
+    try {
+      const file = await this.bot.api.getFile(fileId);
+      if (!file.file_path) return null;
+
+      // Make chatJid safe for use as a directory name (e.g. "tg:-123456" → "tg--123456")
+      const safeChatJid = chatJid.replace(/[^a-zA-Z0-9-]/g, '-');
+      const dir = path.join(ATTACHMENTS_HOST_DIR, safeChatJid, msgId);
+      fs.mkdirSync(dir, { recursive: true });
+
+      const localPath = path.join(dir, filename);
+      const containerPath = `${ATTACHMENTS_CONTAINER_DIR}/${safeChatJid}/${msgId}/${filename}`;
+      const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+
+      await new Promise<void>((resolve, reject) => {
+        const fileStream = fs.createWriteStream(localPath);
+        https
+          .get(url, (response) => {
+            response.pipe(fileStream);
+            fileStream.on('finish', () => {
+              fileStream.close();
+              resolve();
+            });
+            fileStream.on('error', reject);
+            response.on('error', reject);
+          })
+          .on('error', reject);
+      });
+
+      logger.info(
+        { chatJid, msgId, filename, localPath },
+        'Telegram attachment downloaded',
+      );
+      return containerPath;
+    } catch (err) {
+      logger.warn({ err, fileId, chatJid, msgId }, 'Failed to download Telegram attachment');
+      return null;
+    }
   }
 
   async connect(): Promise<void> {
@@ -167,8 +237,13 @@ export class TelegramChannel implements Channel {
       );
     });
 
-    // Handle non-text messages with placeholders so the agent knows something was sent
-    const storeNonText = (ctx: any, placeholder: string) => {
+    // Handle non-text messages — download supported types (photos, documents)
+    // and embed the container path in the content so the agent can access the file.
+    const storeNonText = (
+      ctx: any,
+      placeholder: string,
+      containerPath?: string,
+    ) => {
       const chatJid = `tg:${ctx.chat.id}`;
       const group = this.opts.registeredGroups()[chatJid];
       if (!group) return;
@@ -180,6 +255,12 @@ export class TelegramChannel implements Channel {
         ctx.from?.id?.toString() ||
         'Unknown';
       const caption = ctx.message.caption ? ` ${ctx.message.caption}` : '';
+
+      // Embed the container path as a marker in the content so it survives the DB
+      // without a schema change. formatMessages() will strip and render it as XML.
+      const attachmentMarker = containerPath
+        ? `\n${ATTACHMENT_PATH_MARKER}${containerPath}]`
+        : '';
 
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -195,26 +276,86 @@ export class TelegramChannel implements Channel {
         chat_jid: chatJid,
         sender: ctx.from?.id?.toString() || '',
         sender_name: senderName,
-        content: `${placeholder}${caption}`,
+        content: `${placeholder}${caption}${attachmentMarker}`,
         timestamp,
         is_from_me: false,
       });
     };
 
-    this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));
+    this.bot.on('message:photo', async (ctx) => {
+      const photo = ctx.message.photo?.at(-1);
+      const msgId = ctx.message.message_id.toString();
+      const chatJid = `tg:${ctx.chat.id}`;
+      let containerPath: string | undefined;
+      if (photo) {
+        containerPath =
+          (await this.downloadAttachment(
+            photo.file_id,
+            chatJid,
+            msgId,
+            'photo.jpg',
+          )) ?? undefined;
+      }
+      storeNonText(ctx, '[Photo]', containerPath);
+    });
+
+    this.bot.on('message:document', async (ctx) => {
+      const doc = ctx.message.document;
+      const name = doc?.file_name || 'file';
+      const msgId = ctx.message.message_id.toString();
+      const chatJid = `tg:${ctx.chat.id}`;
+      let containerPath: string | undefined;
+      if (doc) {
+        containerPath =
+          (await this.downloadAttachment(doc.file_id, chatJid, msgId, name)) ??
+          undefined;
+      }
+      storeNonText(ctx, `[Document: ${name}]`, containerPath);
+    });
+
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
     this.bot.on('message:voice', (ctx) => storeNonText(ctx, '[Voice message]'));
     this.bot.on('message:audio', (ctx) => storeNonText(ctx, '[Audio]'));
-    this.bot.on('message:document', (ctx) => {
-      const name = ctx.message.document?.file_name || 'file';
-      storeNonText(ctx, `[Document: ${name}]`);
-    });
     this.bot.on('message:sticker', (ctx) => {
       const emoji = ctx.message.sticker?.emoji || '';
       storeNonText(ctx, `[Sticker ${emoji}]`);
     });
     this.bot.on('message:location', (ctx) => storeNonText(ctx, '[Location]'));
     this.bot.on('message:contact', (ctx) => storeNonText(ctx, '[Contact]'));
+
+    // Handle message reactions — delivered as structured content so Orion can act on them
+    this.bot.on('message_reaction', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) return;
+
+      const reactions = ctx.messageReaction.new_reaction
+        .map((r) => (r.type === 'emoji' ? r.emoji : r.type))
+        .join(' ');
+
+      // Ignore reaction-removal events (new_reaction is empty)
+      if (!reactions) return;
+
+      const senderName =
+        ctx.from?.first_name || ctx.from?.username || 'Unknown';
+      const timestamp = new Date(ctx.messageReaction.date * 1000).toISOString();
+      const reactedToId = ctx.messageReaction.message_id;
+
+      this.opts.onMessage(chatJid, {
+        id: `reaction-${reactedToId}-${Date.now()}`,
+        chat_jid: chatJid,
+        sender: ctx.from?.id?.toString() || '',
+        sender_name: senderName,
+        content: `[Reaction: ${reactions} on message ${reactedToId}]`,
+        timestamp,
+        is_from_me: false,
+      });
+
+      logger.info(
+        { chatJid, reactions, reactedToId, sender: senderName },
+        'Telegram reaction received',
+      );
+    });
 
     // Handle errors gracefully
     this.bot.catch((err) => {
@@ -224,6 +365,7 @@ export class TelegramChannel implements Channel {
     // Start polling — returns a Promise that resolves when started
     return new Promise<void>((resolve) => {
       this.bot!.start({
+        allowed_updates: ['message', 'message_reaction'],
         onStart: (botInfo) => {
           logger.info(
             { username: botInfo.username, id: botInfo.id },
