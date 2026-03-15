@@ -1,4 +1,4 @@
-# Agent Instructions
+# Orion
 
 ## Identity
 Read /workspace/extra/nanoclaw-config/IDENTITY.md to understand who you are.
