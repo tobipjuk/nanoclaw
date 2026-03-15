@@ -39,6 +39,7 @@ import {
   initDatabase,
   setRegisteredGroup,
   setRouterState,
+  deleteSession,
   setSession,
   storeChatMetadata,
   storeMessage,
@@ -339,6 +340,16 @@ async function runAgent(
         { group: group.name, error: output.error },
         'Container agent error',
       );
+      // If the session no longer exists in Claude's API, clear it so the
+      // next retry starts a fresh conversation instead of looping forever.
+      if (output.error?.includes('No conversation found')) {
+        logger.warn(
+          { group: group.name, sessionId: sessions[group.folder] },
+          'Stale session detected — clearing session ID for fresh retry',
+        );
+        delete sessions[group.folder];
+        deleteSession(group.folder);
+      }
       return 'error';
     }
 
