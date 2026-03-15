@@ -62,7 +62,12 @@ interface VolumeMount {
 }
 
 // Dirs that are large or irrelevant — skip when chmod-ing writable mounts
-const CHMOD_SKIP_DIRS = new Set(['.git', '.venv', 'node_modules', '__pycache__']);
+const CHMOD_SKIP_DIRS = new Set([
+  '.git',
+  '.venv',
+  'node_modules',
+  '__pycache__',
+]);
 
 // Recursively make a directory (and all its contents) writable by the
 // container's node user (uid 1000). Called before each container start so
