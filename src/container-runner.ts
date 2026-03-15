@@ -28,6 +28,10 @@ import {
 import { detectAuthMode } from './credential-proxy.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
+import {
+  ATTACHMENTS_HOST_DIR,
+  ATTACHMENTS_CONTAINER_DIR,
+} from './channels/telegram.js';
 
 // Sentinel markers for robust output parsing (must match agent-runner)
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
@@ -111,6 +115,18 @@ function buildVolumeMounts(
         readonly: true,
       });
     }
+  }
+
+  // Telegram attachments directory — downloaded files from Telegram messages.
+  // Mounted read-only so the agent can read files but cannot modify them.
+  // Created by TelegramChannel on startup; only mounted if it exists.
+  const attachmentsDir = ATTACHMENTS_HOST_DIR;
+  if (fs.existsSync(attachmentsDir)) {
+    mounts.push({
+      hostPath: attachmentsDir,
+      containerPath: ATTACHMENTS_CONTAINER_DIR,
+      readonly: true,
+    });
   }
 
   // Per-group Claude sessions directory (isolated from other groups)
@@ -249,6 +265,18 @@ function buildContainerArgs(
   // Pass through optional third-party API keys
   if (process.env.TODOIST_API_KEY) {
     args.push('-e', `TODOIST_API_KEY=${process.env.TODOIST_API_KEY}`);
+  }
+
+  // Microsoft Graph API credentials (Outlook access)
+  for (const key of [
+    'MICROSOFT_CLIENT_ID',
+    'MICROSOFT_CLIENT_SECRET',
+    'MICROSOFT_REFRESH_TOKEN',
+    'MICROSOFT_USER_EMAIL',
+  ]) {
+    if (process.env[key]) {
+      args.push('-e', `${key}=${process.env[key]}`);
+    }
   }
 
   // Runtime-specific args for host gateway resolution
