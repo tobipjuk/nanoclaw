@@ -41,6 +41,8 @@ curl -s "https://api.todoist.com/api/v1/tasks/TASK_ID" \
 
 ## Create a task
 
+Do **not** set a due date unless the user explicitly asks for one.
+
 ```bash
 curl -s -X POST "https://api.todoist.com/api/v1/tasks" \
   -H "Authorization: Bearer $TODOIST_API_KEY" \
@@ -49,9 +51,14 @@ curl -s -X POST "https://api.todoist.com/api/v1/tasks" \
     "content": "Task title",
     "description": "Optional details",
     "assignee_id": "2893711",
-    "section_id": "6g7cgvqxCVXpQH6X",
-    "due_string": "tomorrow"
+    "section_id": "6g7cgvqxCVXpQH6X"
   }' | jq '{id, content}'
+```
+
+To set a due date (only when the user requests it):
+
+```bash
+  -d '{"content": "Task title", "assignee_id": "2893711", "section_id": "6g7cgvqxCVXpQH6X", "due_string": "tomorrow"}'
 ```
 
 ## Complete (close) a task
