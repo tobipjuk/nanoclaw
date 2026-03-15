@@ -19,10 +19,11 @@ Always include **both** overdue tasks and tasks due today — not just today's d
 
 Most tasks do not have an assignee set (including all recurring tasks), so **always query all tasks** — do not filter by `assignee_id`. Tobi is the only user so all tasks belong to him.
 
-The API paginates at 50 tasks/page. There are ~250 tasks total, so **always paginate through all pages** when checking due dates — tasks due today or overdue may be on any page.
+The API paginates at 50 tasks/page. There are ~250 tasks total across multiple pages. **Always paginate through all pages** — due tasks may be on any page.
+
+Use this exact script to get all tasks due today or overdue (copy it verbatim):
 
 ```bash
-# Fetch all tasks across all pages and filter by due date
 RESULT=""; CURSOR=""
 while true; do
   URL="https://api.todoist.com/api/v1/tasks${CURSOR:+?cursor=$CURSOR}"
@@ -31,14 +32,11 @@ while true; do
   CURSOR=$(echo "$PAGE" | jq -r '.next_cursor // empty')
   [ -z "$CURSOR" ] && break
 done
-echo "$RESULT" | awk -F'\t' '$3 != ""' | sort -t$'\t' -k3
+TODAY=$(date +%F)
+echo "$RESULT" | awk -F'\t' -v today="$TODAY" '$3 != "" && $3 <= today' | sort -t$'\t' -k3
 ```
 
-To get today's tasks **and** overdue (use this for any "what do I have today" query):
-```bash
-TODAY=$(date +%F)
-echo "$RESULT" | awk -F'\t' -v today="$TODAY" '$3 != "" && $3 <= today'
-```
+This returns all tasks with a due date on or before today (overdue + today). **Do not use `$3 == today`** — that omits overdue tasks.
 
 ## Filter by project
 
