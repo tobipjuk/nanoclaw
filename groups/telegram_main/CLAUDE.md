@@ -20,7 +20,7 @@ Four recurring tasks run in this group:
 
 | ID | Schedule | Purpose |
 |----|----------|---------|
-| `task-1773608334922-86ries` | `*/5 * * * *` | Calendar nudge — alerts 15 min before non-all-day events |
+| `task-1773608334922-86ries` | `*/5 7-22 * * *` | Calendar nudge — alerts 15 min before non-all-day events (7am–10pm only) |
 | `82f5431b77b831fed800ca63860f09de` | `30 7 * * 1-5` | Morning briefing — calendar, inbox, Todoist tasks |
 | `7cf7ac71-101e-43c3-9219-ac614c5d14ee` | `0 16 * * *` | End-of-day check-in — overdue/due-today Todoist tasks |
 | `4e2b4e33-bf01-4db3-a862-f2f7bd81f496` | `0 8 * * 1-5` | Daily CTI briefing — cyber threat intelligence summary |
