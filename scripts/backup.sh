@@ -74,7 +74,7 @@ fi
 # ── Upload to OneDrive ────────────────────────────────────────────────────────
 log "Uploading to OneDrive..."
 UPLOAD_RESPONSE=$(curl -s -X PUT \
-  "https://graph.microsoft.com/v1.0/me/drive/root:/nanoclaw-backups/${BACKUP_NAME}:/content" \
+  "https://graph.microsoft.com/v1.0/me/drive/root:/Orion-Shared/nanoclaw-backups/${BACKUP_NAME}:/content" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/octet-stream" \
   --data-binary "@$ENCRYPTED")
@@ -89,7 +89,7 @@ log "Upload successful (id: $UPLOAD_ID)"
 # ── Prune old backups (keep 7 most recent) ────────────────────────────────────
 log "Pruning old backups..."
 LIST_RESPONSE=$(curl -s \
-  "https://graph.microsoft.com/v1.0/me/drive/root:/nanoclaw-backups:/children?\$select=id,name,lastModifiedDateTime&\$orderby=lastModifiedDateTime+desc" \
+  "https://graph.microsoft.com/v1.0/me/drive/root:/Orion-Shared/nanoclaw-backups:/children?\$select=id,name,lastModifiedDateTime&\$orderby=lastModifiedDateTime+desc" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
 # Delete any beyond the 7 most recent
