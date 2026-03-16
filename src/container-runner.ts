@@ -313,6 +313,12 @@ function buildContainerArgs(
     args.push('-e', `${key}=${value}`);
   }
 
+  // Google Sheets API credentials (Monzo finance tracking)
+  const googleVars = readEnvFile(['GOOGLE_SHEETS_SA_KEY', 'MONZO_SHEET_ID']);
+  for (const [key, value] of Object.entries(googleVars)) {
+    if (value) args.push('-e', `${key}=${value}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 
