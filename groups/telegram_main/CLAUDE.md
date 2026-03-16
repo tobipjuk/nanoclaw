@@ -6,7 +6,7 @@ Your identity, user profile, and preferences are already loaded from the config 
 Container path: `/workspace/extra/nanoclaw-config/`
 
 ## Proposal Workflow
-When you notice something about yourself you'd like to improve, write a proposal file to `/workspace/extra/nanoclaw-config/proposals/pending/` following the format in `/workspace/extra/nanoclaw-config/PROPOSALS.md`.
+When you notice something about yourself you'd like to improve, write a proposal file to `/workspace/extra/nanoclaw-config/proposals/pending/` following the format in `/workspace/extra/nanoclaw-config/PROPOSALS.md`. Lifecycle: pending → approved → implemented (or rejected).
 
 After writing a proposal, notify the user via Telegram using the `proposal-notify` skill.
 

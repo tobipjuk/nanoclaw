@@ -5,6 +5,7 @@ Handles /approve and /reject commands from Telegram.
 ## On /approve YYYY-MM-DD-description
 
 1. Move file from proposals/pending/ to proposals/approved/
+   (After implementation, move to proposals/implemented/)
 2. Commit and push: `git add . && git commit -m "Approve: description" && git push origin main`
 3. Reply via Telegram: "✅ Approved. Send `/claude implement proposals/approved/YYYY-MM-DD-description.md` when ready."
 
