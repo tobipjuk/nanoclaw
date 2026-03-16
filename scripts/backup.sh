@@ -86,6 +86,23 @@ if [[ -z "$UPLOAD_ID" ]]; then
 fi
 log "Upload successful (id: $UPLOAD_ID)"
 
+# ── Upload DR playbook (plain text, always readable without decryption) ───────
+PLAYBOOK="/root/nanoclaw-config/DR_PLAYBOOK.md"
+if [[ -f "$PLAYBOOK" ]]; then
+  log "Uploading DR playbook..."
+  PLAYBOOK_RESPONSE=$(curl -s -X PUT \
+    "https://graph.microsoft.com/v1.0/me/drive/root:/Orion-Shared/nanoclaw-backups/DR_PLAYBOOK.md:/content" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: text/markdown" \
+    --data-binary "@$PLAYBOOK")
+  PLAYBOOK_ID=$(echo "$PLAYBOOK_RESPONSE" | jq -r '.id // empty')
+  if [[ -n "$PLAYBOOK_ID" ]]; then
+    log "DR playbook uploaded."
+  else
+    log "WARN: DR playbook upload failed: $(echo "$PLAYBOOK_RESPONSE" | jq -r '.error.message // "unknown"')"
+  fi
+fi
+
 # ── Prune old backups (keep 7 most recent) ────────────────────────────────────
 log "Pruning old backups..."
 LIST_RESPONSE=$(curl -s \
