@@ -20,7 +20,9 @@ if [[ ! -f "$ENV_FILE" ]]; then
   log "ERROR: .env not found at $ENV_FILE"
   exit 1
 fi
-set -a; source "$ENV_FILE"; set +a
+while IFS= read -r line; do
+  [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && export "$line"
+done < "$ENV_FILE"
 
 if [[ -z "${BACKUP_PASSPHRASE:-}" ]]; then
   log "ERROR: BACKUP_PASSPHRASE not set in .env"
@@ -60,7 +62,6 @@ TOKEN_RESPONSE=$(curl -s -X POST \
   "https://login.microsoftonline.com/common/oauth2/v2.0/token" \
   -d "grant_type=refresh_token" \
   -d "client_id=${ORION_ONEDRIVE_CLIENT_ID}" \
-  -d "client_secret=${ORION_ONEDRIVE_CLIENT_SECRET}" \
   --data-urlencode "refresh_token=${ORION_ONEDRIVE_REFRESH_TOKEN}" \
   -d "scope=https://graph.microsoft.com/Files.ReadWrite")
 
