@@ -20,13 +20,11 @@ Notes/
   Work/         ← security, CISO, governance, strategy
   Personal/     ← personal development, health, learning
 Maps/           ← Maps of Content (index notes linking related topics)
-Projects/       ← one note or subfolder per active project
+Projects/       ← one subfolder per project (Code Crafters, altMBA, Garden Office, etc.)
 Resources/
   Orion/        ← Orion/NanoClaw documentation and command reference
-Journal/        ← weekly reviews and reflections
-Archive/        ← completed projects, dormant notes
-  Apple Notes/  ← imported Apple Notes (historical)
-  Files/        ← attached media files (historical)
+  Files/        ← attached media files (scans, PDFs)
+Journal/        ← daily/weekly notes and reflections
 ```
 
 **Rules:**
