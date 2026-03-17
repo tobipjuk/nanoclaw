@@ -77,6 +77,14 @@ find "$VAULT/Inbox" -name "*.md" | sort
 find "$VAULT/Inbox" -name "*.md" -mmin +1440 | wc -l
 ```
 
+**Read a PDF in the vault:**
+```bash
+pdf-reader extract "$VAULT/Resources/Files/filename.pdf"
+pdf-reader extract "$VAULT/Resources/Files/filename.pdf" --layout  # preserve tables
+```
+
+Note: text-based PDFs only. Scanned image PDFs (e.g. `Scan Page *.jpg`) cannot be extracted.
+
 ## After any write operation
 
 After every create, move, or delete, commit and push immediately:
