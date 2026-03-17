@@ -542,16 +542,8 @@ export class TelegramChannel implements Channel {
     }
     try {
       const numericId = jid.replace(/^tg:/, '');
-      await sendTelegramDocument(
-        this.botToken,
-        numericId,
-        filePath,
-        caption,
-      );
-      logger.info(
-        { jid, filePath },
-        'Telegram document sent',
-      );
+      await sendTelegramDocument(this.botToken, numericId, filePath, caption);
+      logger.info({ jid, filePath }, 'Telegram document sent');
     } catch (err) {
       logger.error({ jid, filePath, err }, 'Failed to send Telegram document');
     }
