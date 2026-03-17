@@ -19,10 +19,14 @@ Inbox/          ← all raw captures land here (voice notes, quick thoughts)
 Notes/
   Work/         ← security, CISO, governance, strategy
   Personal/     ← personal development, health, learning
+Maps/           ← Maps of Content (index notes linking related topics)
 Projects/       ← one note or subfolder per active project
-Resources/      ← reference material, articles, frameworks, vendor docs
+Resources/
+  Orion/        ← Orion/NanoClaw documentation and command reference
 Journal/        ← weekly reviews and reflections
 Archive/        ← completed projects, dormant notes
+  Apple Notes/  ← imported Apple Notes (historical)
+  Files/        ← attached media files (historical)
 ```
 
 **Rules:**
