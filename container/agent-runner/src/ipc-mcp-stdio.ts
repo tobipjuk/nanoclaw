@@ -63,6 +63,47 @@ server.tool(
 );
 
 server.tool(
+  'send_file',
+  `Send a file to the user or group via Telegram. The file must exist in a mounted directory accessible to the agent (e.g. /workspace/extra/nanoclaw-shared/ or /workspace/extra/nanoclaw-config/).
+
+Supported file types: any file up to 50 MB (markdown, PDF, CSV, images, etc.).
+
+Use this when Tobi asks you to send a file directly rather than leaving it in OneDrive.`,
+  {
+    path: z.string().describe('Absolute container-side path to the file to send (e.g. /workspace/extra/nanoclaw-shared/report.pdf)'),
+    caption: z.string().optional().describe('Optional caption to include with the file'),
+  },
+  async (args) => {
+    // Basic validation: path must be absolute and under /workspace/extra/
+    if (!args.path.startsWith('/workspace/extra/')) {
+      return {
+        content: [{ type: 'text' as const, text: `Invalid path: "${args.path}". Only files under /workspace/extra/ can be sent.` }],
+        isError: true,
+      };
+    }
+    if (args.path.includes('..')) {
+      return {
+        content: [{ type: 'text' as const, text: 'Invalid path: path traversal not allowed.' }],
+        isError: true,
+      };
+    }
+
+    const data: Record<string, string | undefined> = {
+      type: 'send_file',
+      chatJid,
+      path: args.path,
+      caption: args.caption || undefined,
+      groupFolder,
+      timestamp: new Date().toISOString(),
+    };
+
+    writeIpcFile(MESSAGES_DIR, data);
+
+    return { content: [{ type: 'text' as const, text: 'File send requested.' }] };
+  },
+);
+
+server.tool(
   'schedule_task',
   `Schedule a recurring or one-time task. The task will run as a full agent with access to all tools. Returns the task ID for future reference. To modify an existing task, use update_task instead.
 

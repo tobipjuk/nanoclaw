@@ -44,6 +44,54 @@ async function sendTelegramMessage(
   }
 }
 
+/**
+ * Send a file as a Telegram document.
+ * Uses the Bot API multipart/form-data upload (sendDocument).
+ * Returns without throwing on failure — errors are logged.
+ */
+async function sendTelegramDocument(
+  botToken: string,
+  chatId: string | number,
+  filePath: string,
+  caption?: string,
+): Promise<void> {
+  // Check file exists and get size before attempting upload
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(filePath);
+  } catch (err) {
+    logger.error({ filePath, err }, 'sendTelegramDocument: file not found');
+    return;
+  }
+
+  const MAX_BYTES = 50 * 1024 * 1024; // 50 MB Telegram limit
+  if (stat.size > MAX_BYTES) {
+    logger.warn(
+      { filePath, size: stat.size },
+      'sendTelegramDocument: file exceeds 50 MB limit, skipping',
+    );
+    return;
+  }
+
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  const fileBlob = new Blob([fs.readFileSync(filePath)]);
+  form.append('document', fileBlob, path.basename(filePath));
+  if (caption) form.append('caption', caption);
+
+  const response = await fetch(
+    `https://api.telegram.org/bot${botToken}/sendDocument`,
+    { method: 'POST', body: form },
+  );
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    logger.error(
+      { chatId, filePath, status: response.status, body },
+      'sendTelegramDocument: Telegram API error',
+    );
+  }
+}
+
 /** Root directory on the host where Telegram attachments are downloaded */
 const ATTACHMENTS_HOST_DIR = path.join(os.homedir(), 'nanoclaw-attachments');
 
@@ -480,6 +528,32 @@ export class TelegramChannel implements Channel {
       logger.info({ jid, length: text.length }, 'Telegram message sent');
     } catch (err) {
       logger.error({ jid, err }, 'Failed to send Telegram message');
+    }
+  }
+
+  async sendDocument(
+    jid: string,
+    filePath: string,
+    caption?: string,
+  ): Promise<void> {
+    if (!this.bot) {
+      logger.warn('Telegram bot not initialized');
+      return;
+    }
+    try {
+      const numericId = jid.replace(/^tg:/, '');
+      await sendTelegramDocument(
+        this.botToken,
+        numericId,
+        filePath,
+        caption,
+      );
+      logger.info(
+        { jid, filePath },
+        'Telegram document sent',
+      );
+    } catch (err) {
+      logger.error({ jid, filePath, err }, 'Failed to send Telegram document');
     }
   }
 

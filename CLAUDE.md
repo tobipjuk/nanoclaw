@@ -62,3 +62,13 @@ systemctl --user restart nanoclaw
 ## Container Build Cache
 
 The container buildkit caches the build context aggressively. `--no-cache` alone does NOT invalidate COPY steps — the builder's volume retains stale files. To force a truly clean rebuild, prune the builder then re-run `./container/build.sh`.
+
+## Per-Group Agent-Runner Source
+
+`container/agent-runner/src/` is copied **once** into `data/sessions/{group}/agent-runner-src/` the first time a group's container runs, and never updated automatically. When you modify `ipc-mcp-stdio.ts` or `index.ts`, you must also sync the change to each group's copy:
+
+```bash
+cp container/agent-runner/src/ipc-mcp-stdio.ts data/sessions/{group}/agent-runner-src/
+```
+
+The container's entrypoint recompiles on startup, so no container rebuild is needed — just copy and the next run picks it up.

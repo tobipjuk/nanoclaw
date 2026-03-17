@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import { CronExpressionParser } from 'cron-parser';
@@ -12,6 +13,7 @@ import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
+  sendDocument: (jid: string, filePath: string, caption?: string) => Promise<void>;
   registeredGroups: () => Record<string, RegisteredGroup>;
   registerGroup: (jid: string, group: RegisteredGroup) => void;
   syncGroups: (force: boolean) => Promise<void>;
@@ -25,6 +27,75 @@ export interface IpcDeps {
 }
 
 let ipcWatcherRunning = false;
+
+/**
+ * Resolve a container-side path (e.g. /workspace/extra/nanoclaw-shared/file.md)
+ * to a real host path using the registered group's additional mounts.
+ *
+ * Returns null if:
+ *   - The path is not under any known container mount prefix
+ *   - The resulting host path would escape the mount root (path traversal)
+ */
+function resolveContainerPath(
+  containerPath: string,
+  chatJid: string,
+  registeredGroups: Record<string, RegisteredGroup>,
+): string | null {
+  const group = registeredGroups[chatJid];
+  if (!group?.containerConfig?.additionalMounts) {
+    return null;
+  }
+
+  for (const mount of group.containerConfig.additionalMounts) {
+    // Determine the container-side prefix for this mount
+    const containerMountPath = mount.containerPath
+      ? `/workspace/extra/${mount.containerPath}`
+      : `/workspace/extra/${path.basename(mount.hostPath)}`;
+
+    const prefix = containerMountPath.endsWith('/')
+      ? containerMountPath
+      : containerMountPath + '/';
+
+    if (
+      containerPath === containerMountPath ||
+      containerPath.startsWith(prefix)
+    ) {
+      // Compute relative path within the mount
+      const relative = containerPath.startsWith(prefix)
+        ? containerPath.slice(prefix.length)
+        : '';
+
+      // Path traversal guard
+      if (relative.includes('..')) {
+        logger.warn(
+          { containerPath, relative },
+          'resolveContainerPath: path traversal attempt blocked',
+        );
+        return null;
+      }
+
+      const hostRoot = mount.hostPath.startsWith('~/')
+        ? path.join(process.env.HOME || os.homedir(), mount.hostPath.slice(2))
+        : mount.hostPath;
+
+      const resolved = relative ? path.join(hostRoot, relative) : hostRoot;
+
+      // Final traversal check: resolved must still be under hostRoot
+      const rel2 = path.relative(hostRoot, resolved);
+      if (rel2.startsWith('..') || path.isAbsolute(rel2)) {
+        logger.warn(
+          { containerPath, resolved, hostRoot },
+          'resolveContainerPath: resolved path escapes mount root',
+        );
+        return null;
+      }
+
+      return resolved;
+    }
+  }
+
+  return null;
+}
 
 export function startIpcWatcher(deps: IpcDeps): void {
   if (ipcWatcherRunning) {
@@ -73,18 +144,53 @@ export function startIpcWatcher(deps: IpcDeps): void {
             const filePath = path.join(messagesDir, file);
             try {
               const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-              if (data.type === 'message' && data.chatJid && data.text) {
+
+              const isTextMessage =
+                data.type === 'message' && data.chatJid && data.text;
+              const isFileMessage =
+                data.type === 'send_file' && data.chatJid && data.path;
+
+              if (isTextMessage || isFileMessage) {
                 // Authorization: verify this group can send to this chatJid
                 const targetGroup = registeredGroups[data.chatJid];
                 if (
                   isMain ||
                   (targetGroup && targetGroup.folder === sourceGroup)
                 ) {
-                  await deps.sendMessage(data.chatJid, data.text);
-                  logger.info(
-                    { chatJid: data.chatJid, sourceGroup },
-                    'IPC message sent',
-                  );
+                  if (isTextMessage) {
+                    await deps.sendMessage(data.chatJid, data.text);
+                    logger.info(
+                      { chatJid: data.chatJid, sourceGroup },
+                      'IPC message sent',
+                    );
+                  } else {
+                    // send_file: translate container path → host path then send
+                    const hostPath = resolveContainerPath(
+                      data.path,
+                      data.chatJid,
+                      registeredGroups,
+                    );
+                    if (!hostPath) {
+                      logger.warn(
+                        {
+                          path: data.path,
+                          chatJid: data.chatJid,
+                          sourceGroup,
+                        },
+                        'IPC send_file: path not in any allowed mount, blocked',
+                      );
+                    } else {
+                      await deps.sendDocument(
+                        data.chatJid,
+                        hostPath,
+                        data.caption,
+                      );
+                      logger.info(
+                        { chatJid: data.chatJid, hostPath, sourceGroup },
+                        'IPC send_file sent',
+                      );
+                    }
+                  }
                 } else {
                   logger.warn(
                     { chatJid: data.chatJid, sourceGroup },
