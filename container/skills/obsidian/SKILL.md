@@ -87,13 +87,13 @@ Note: text-based PDFs only. Scanned image PDFs (e.g. `Scan Page *.jpg`) cannot b
 
 ## After any write operation
 
-After every create, move, or delete, commit and push immediately:
+After every create, move, or delete, commit immediately:
 
 ```bash
-cd "$VAULT" && git add -A && git commit -m "orion: <short description>" && git push
+cd "$VAULT" && git add -A && git commit -m "orion: <short description>"
 ```
 
-If `git push` fails, surface the error — do not silently swallow it.
+Do not run `git push` — the host autopush daemon runs as root (with SSH access) and pushes within 10 seconds.
 
 ## Inbox review workflow (`/inbox`)
 
@@ -102,4 +102,4 @@ If `git push` fails, surface the error — do not silently swallow it.
    - **Expand** — draft a proper note and suggest a destination folder
    - **File** — move directly to the appropriate folder using `obsidian-mv.sh`
    - **Delete** — remove the file
-3. Commit and push after all changes are made (one commit for the batch)
+3. Commit after all changes are made (one commit for the batch)
