@@ -63,6 +63,21 @@ systemctl --user restart nanoclaw
 
 The container buildkit caches the build context aggressively. `--no-cache` alone does NOT invalidate COPY steps — the builder's volume retains stale files. To force a truly clean rebuild, prune the builder then re-run `./container/build.sh`.
 
+## Writable Additional Mounts (vault, git repos)
+
+`container-runner.ts` calls `chownToNodeUser()` then `chmodWritable()` on every writable additional mount before each container start. This ensures:
+
+- Files created by root on the host (e.g. from `git pull` cron jobs) are accessible on the next container run
+- Git operations (`git commit`, `git push`) work — git refuses to operate in repos owned by a different user (CVE-2022-24765), so the mount must be owned by uid 1000 (the container's `node` user)
+
+**If git push fails in a container with a "dubious ownership" error**, the vault directory on the host is likely owned by root. Fix with:
+
+```bash
+chown -R 1000:1000 /path/to/vault
+```
+
+Root retains full access to uid-1000-owned files, so host-side cron pulls and backups are unaffected.
+
 ## Per-Group Agent-Runner Source
 
 `container/agent-runner/src/` is copied **once** into `data/sessions/{group}/agent-runner-src/` the first time a group's container runs, and never updated automatically. When you modify `ipc-mcp-stdio.ts` or `index.ts`, you must also sync the change to each group's copy:

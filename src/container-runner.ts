@@ -86,6 +86,25 @@ function chmodWritable(dirPath: string): void {
   }
 }
 
+// Recursively chown a directory to the container's node user (uid/gid 1000).
+// Git refuses to operate in repos owned by a different user (CVE-2022-24765),
+// so additional mounts that are git repos must be owned by uid 1000.
+// Root retains full access to uid-1000-owned files, so host-side operations
+// (cron pulls, backups) are unaffected.
+const NODE_UID = 1000;
+const NODE_GID = 1000;
+function chownToNodeUser(dirPath: string): void {
+  fs.chownSync(dirPath, NODE_UID, NODE_GID);
+  for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      chownToNodeUser(fullPath);
+    } else {
+      fs.chownSync(fullPath, NODE_UID, NODE_GID);
+    }
+  }
+}
+
 function buildVolumeMounts(
   group: RegisteredGroup,
   isMain: boolean,
@@ -261,7 +280,14 @@ function buildVolumeMounts(
     // (uid 1000). Root-owned dirs/files would otherwise block reads and writes.
     for (const mount of validatedMounts) {
       if (!mount.readonly && fs.existsSync(mount.hostPath)) {
+        chownToNodeUser(mount.hostPath);
         chmodWritable(mount.hostPath);
+        // chmodWritable skips .git for perf, but additional mounts may be git
+        // repos where the container needs to commit/push — fix those too.
+        const gitDir = path.join(mount.hostPath, '.git');
+        if (fs.existsSync(gitDir)) {
+          chmodWritable(gitDir);
+        }
       }
     }
     mounts.push(...validatedMounts);
