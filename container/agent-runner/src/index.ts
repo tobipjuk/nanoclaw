@@ -47,9 +47,25 @@ interface SessionsIndex {
   entries: SessionEntry[];
 }
 
+interface TextBlock {
+  type: 'text';
+  text: string;
+}
+
+interface ImageBlock {
+  type: 'image';
+  source: {
+    type: 'base64';
+    media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    data: string;
+  };
+}
+
+type ContentBlock = TextBlock | ImageBlock;
+
 interface SDKUserMessage {
   type: 'user';
-  message: { role: 'user'; content: string };
+  message: { role: 'user'; content: string | ContentBlock[] };
   parent_tool_use_id: null;
   session_id: string;
 }
@@ -67,10 +83,10 @@ class MessageStream {
   private waiting: (() => void) | null = null;
   private done = false;
 
-  push(text: string): void {
+  push(content: string | ContentBlock[]): void {
     this.queue.push({
       type: 'user',
-      message: { role: 'user', content: text },
+      message: { role: 'user', content },
       parent_tool_use_id: null,
       session_id: '',
     });
@@ -92,6 +108,52 @@ class MessageStream {
       this.waiting = null;
     }
   }
+}
+
+const ATTACHMENT_RE = /<attachment\s+path="([^"]+)"\s*\/>/g;
+
+const IMAGE_MIME: Record<string, 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'> = {
+  jpg:  'image/jpeg',
+  jpeg: 'image/jpeg',
+  png:  'image/png',
+  gif:  'image/gif',
+  webp: 'image/webp',
+};
+
+/**
+ * Parse <attachment path="..." /> tags from the prompt.
+ * Image attachments become base64 vision blocks; non-image tags are left in the text.
+ * Returns a plain string if no images found, or a ContentBlock[] for multimodal input.
+ */
+function buildMultimodalContent(prompt: string): string | ContentBlock[] {
+  const imageBlocks: ImageBlock[] = [];
+
+  const textContent = prompt.replace(ATTACHMENT_RE, (fullMatch, attachPath: string) => {
+    const ext = path.extname(attachPath).slice(1).toLowerCase();
+    const mediaType = IMAGE_MIME[ext];
+    if (!mediaType) return fullMatch; // non-image: leave tag in text for agent to use
+
+    try {
+      if (!fs.existsSync(attachPath)) {
+        log(`Image not found at ${attachPath}, skipping vision block`);
+        return fullMatch;
+      }
+      const data = fs.readFileSync(attachPath).toString('base64');
+      imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data } });
+      log(`Loaded image for vision: ${attachPath} (${mediaType})`);
+      return ''; // consumed — remove from text
+    } catch (err) {
+      log(`Failed to read image ${attachPath}: ${err instanceof Error ? err.message : String(err)}`);
+      return fullMatch;
+    }
+  }).trim();
+
+  if (imageBlocks.length === 0) return textContent || prompt;
+
+  const blocks: ContentBlock[] = [];
+  if (textContent) blocks.push({ type: 'text', text: textContent });
+  blocks.push(...imageBlocks);
+  return blocks;
 }
 
 async function readStdin(): Promise<string> {
@@ -338,7 +400,7 @@ async function runQuery(
   resumeAt?: string,
 ): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean }> {
   const stream = new MessageStream();
-  stream.push(prompt);
+  stream.push(buildMultimodalContent(prompt));
 
   // Poll IPC for follow-up messages and _close sentinel during the query
   let ipcPolling = true;
@@ -355,7 +417,7 @@ async function runQuery(
     const messages = drainIpcInput();
     for (const text of messages) {
       log(`Piping IPC message into active query (${text.length} chars)`);
-      stream.push(text);
+      stream.push(buildMultimodalContent(text));
     }
     setTimeout(pollIpcDuringQuery, IPC_POLL_MS);
   };
