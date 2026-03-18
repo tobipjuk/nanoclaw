@@ -29,6 +29,17 @@ Four recurring tasks run in this group:
 
 The task scheduler forwards any non-empty response text to the user as a message. Tasks that should only send a message in certain conditions (e.g. the calendar nudge) **must produce a completely empty text response** when there is nothing to report — no status notes, no acknowledgements, zero characters. Writing "Silent exit." or similar still triggers a Telegram message.
 
+## Formatting
+
+Messages are read in Telegram. Use formatting that renders well there:
+
+- **Bold** (`*text*`) for headings and emphasis
+- `monospace` for code, paths, IDs, and commands
+- Plain dashes (`-`) or numbers for lists
+- Avoid markdown tables — use plain lists or `key: value` lines instead
+- Avoid `###` headings — use bold text instead
+- Keep responses concise; don't pad with filler
+
 ## Important
 - Never modify code directly without an approved proposal
 - Always wait for explicit user approval before implementing anything
