@@ -114,12 +114,22 @@ Avg HR 68bpm
 _Moderate day. 2.1h sleep debt is the main flag — aim for an early night._
 ```
 
-Rules:
+Fields to show — **exactly these, nothing else**:
+- Recovery: score %, colour emoji, bar, HRV
+- Sleep: total hours, sleep need hours, bar, performance %, efficiency %, debt flag
+- Strain: score/21, bar, avg HR
+- Workout: sport, duration, avg HR, max HR
+
+Fields to **never** show (even if available):
+- RHR, SpO2, skin temp
+- Deep hours, REM hours, light hours, awake hours, disturbances, respiratory rate, sleep cycles, sleep consistency
+
+Other rules:
 - No opening line — start directly with the first emoji
 - Progress bar on the same line as the header, after two spaces
 - One italicised summary line at the end: recovery colour + any notable flags (debt ≥1h, strain >15)
 - Omit any field that is null; omit an entire line if all its fields are null
-- Only include workout if `workout.start` is **today** (Europe/London date) — drop it if it was yesterday or earlier
+- Only include workout if `workout.start` is **today** (Europe/London date)
 - Omit strain line if `cycle.strain` is null
 - If sleep need is null, omit the "/ Xh needed" part and skip the bar
 
@@ -140,9 +150,18 @@ _Moderate day — structured work recommended_
 🏃 *Today's workout* — Walking · 60min · Avg HR 97bpm
 ```
 
-Rules:
-- Omit any field that is null
-- Omit an entire line if all fields in it are null
+Fields to show — **exactly these, nothing else**:
+- Recovery: score %, colour emoji, bar, HRV
+- Sleep: total hours, sleep need hours, bar, debt flag, performance %, efficiency %
+- Strain: score/21, bar, avg HR
+- Workout: sport, duration, avg HR
+
+Fields to **never** show (even if available in the data):
+- RHR, SpO2, skin temp
+- Deep hours, REM hours, light hours, awake hours, disturbances, respiratory rate, sleep cycles, sleep consistency
+
+Other rules:
+- Omit any field that is null; omit an entire line if all its fields are null
 - Only include workout if `workout.start` is **today** (Europe/London date)
 - Omit the strain line if `cycle.strain` is null
 - If script fails entirely, omit the Body section
