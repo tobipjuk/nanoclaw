@@ -77,9 +77,9 @@ safe_fetch() {
 }
 
 RECOVERY=$(safe_fetch "https://api.prod.whoop.com/developer/v2/recovery?limit=1")
-SLEEP=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/sleep?limit=1")
+SLEEP=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/activity/sleep?limit=1")
 CYCLE=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/cycles?limit=1")
-WORKOUT=$(safe_fetch  "https://api.prod.whoop.com/developer/v2/workout?limit=1")
+WORKOUT=$(safe_fetch  "https://api.prod.whoop.com/developer/v2/activity/workout?limit=1")
 
 # ── Extract recovery fields ────────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ WORKOUT_DIST_KM=$(echo "$WORKOUT" | jq -r '
   if . != null then (. / 1000 * 10 | round) / 10 else null end')
 
 WORKOUT_ZONES=$(echo "$WORKOUT" | jq -r '
-  .records[0].score |
+  .records[0].score.zone_durations |
   if . != null then {
     z0: ((.zone_zero_milli // 0) / 60000 | round),
     z1: ((.zone_one_milli // 0) / 60000 | round),
