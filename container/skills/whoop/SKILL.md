@@ -101,17 +101,15 @@ Use 10-character `▓░` bars to give instant visual context for scores and fil
 When Tobi asks directly ("how's my Whoop stats", "what's my recovery", etc.), reply with **only** the block below — no preamble, no trailing paragraph, no "---" separator.
 
 ```
-💪 *Recovery* — 53% 🟡  ▓▓▓▓▓░░░░░
-HRV 29ms · RHR 75bpm · SpO2 94% · Skin 35.4°C
+💪 *Recovery* — 53% 🟡  ▓▓▓▓▓░░░░░  HRV 29ms
 
 😴 *Sleep* — 6.5h / 9.8h needed  ▓▓▓▓▓▓▓░░░
-Deep 1.8h · REM 2.5h · Light 1.7h · Awake 0.5h
-78% performance · 93% efficiency · 5 disturbances · ⚠️ 2.1h debt
+78% performance · 93% efficiency · ⚠️ 2.1h debt
 
 🔋 *Strain* — 4.4 / 21  ▓▓░░░░░░░░  _(cycle in progress)_
 Avg HR 68bpm
 
-🏃 *Last workout* — Walking · 60min · Avg HR 97bpm · Max 132bpm
+🏃 *Today's workout* — Walking · 60min · Avg HR 97bpm · Max 132bpm
 
 _Moderate day. 2.1h sleep debt is the main flag — aim for an early night._
 ```
@@ -121,8 +119,8 @@ Rules:
 - Progress bar on the same line as the header, after two spaces
 - One italicised summary line at the end: recovery colour + any notable flags (debt ≥1h, strain >15)
 - Omit any field that is null; omit an entire line if all its fields are null
-- Only include workout if `workout.start` is within the last 48 hours
-- Omit strain line if `cycle.strain` is null; omit distance if null
+- Only include workout if `workout.start` is **today** (Europe/London date) — drop it if it was yesterday or earlier
+- Omit strain line if `cycle.strain` is null
 - If sleep need is null, omit the "/ Xh needed" part and skip the bar
 
 ## Morning briefing format
@@ -131,21 +129,21 @@ Add a *Body* section to the briefing using the same visual style:
 
 ```
 💪 *Body*
-Recovery: 53% 🟡  ▓▓▓▓▓░░░░░  HRV 29ms · RHR 75bpm · SpO2 94%
+Recovery: 53% 🟡  ▓▓▓▓▓░░░░░  HRV 29ms
 _Moderate day — structured work recommended_
 
 😴 *Sleep* — 6.5h / 9.8h  ▓▓▓▓▓▓▓░░░  · ⚠️ 2.1h debt
-Deep 1.8h · REM 2.5h · Light 1.7h · 5 disturbances · 93% efficiency
+78% performance · 93% efficiency
 
 🔋 *Strain* so far: 4.4 / 21  ▓▓░░░░░░░░  · Avg HR 68bpm
 
-🏃 *Last workout* — Walking · 60min · Avg HR 97bpm
+🏃 *Today's workout* — Walking · 60min · Avg HR 97bpm
 ```
 
 Rules:
 - Omit any field that is null
 - Omit an entire line if all fields in it are null
-- Only include workout if `workout.start` is within the last 48 hours
+- Only include workout if `workout.start` is **today** (Europe/London date)
 - Omit the strain line if `cycle.strain` is null
 - If script fails entirely, omit the Body section
 
