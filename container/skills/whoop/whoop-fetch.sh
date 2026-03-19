@@ -95,7 +95,7 @@ SLEEP_PERFORMANCE=$(echo "$SLEEP" | jq -r '.records[0].score.sleep_performance_p
 SLEEP_CONSISTENCY=$(echo "$SLEEP" | jq -r '.records[0].score.sleep_consistency_percentage // null')
 SLEEP_EFFICIENCY=$(echo "$SLEEP"  | jq -r '.records[0].score.sleep_efficiency_percentage // null')
 RESP_RATE=$(echo "$SLEEP"         | jq -r '.records[0].score.respiratory_rate // null')
-IS_NAP=$(echo "$SLEEP"            | jq -r '.records[0].nap // null')
+IS_NAP=$(echo "$SLEEP"            | jq -r 'if .records[0].nap != null then .records[0].nap else null end')
 
 SLEEP_HOURS=$(echo "$SLEEP" | jq -r '
   .records[0].score.stage_summary |
@@ -157,7 +157,7 @@ WORKOUT_END=$(echo "$WORKOUT"     | jq -r '.records[0].end // null')
 
 WORKOUT_MINS=$(echo "$WORKOUT" | jq -r '
   if .records[0].start != null and .records[0].end != null then
-    ((.records[0].end | fromdateiso8601) - (.records[0].start | fromdateiso8601)) / 60 | round
+    ((.records[0].end | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) - (.records[0].start | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) / 60 | round
   else null end')
 
 WORKOUT_DIST_KM=$(echo "$WORKOUT" | jq -r '

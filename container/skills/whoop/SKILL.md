@@ -89,6 +89,32 @@ Any field may be `null` if not yet synced or unavailable. Handle gracefully — 
 | 14–17 | High |
 | 18–21 | All Out |
 
+## On-demand format (direct questions about Whoop stats)
+
+When Tobi asks directly ("how's my Whoop stats", "what's my recovery", etc.), reply with **only** the formatted block below — no preamble, no trailing paragraph, no "---" separator. One concise contextual line goes at the very end, inside the block.
+
+```
+💪 *Recovery* — 53% 🟡 · HRV 29ms · RHR 75bpm · SpO2 94% · Skin 35.4°C
+
+😴 *Sleep* — 6.5h · Deep 1.8h · REM 2.5h · Light 1.7h
+78% performance · 93% efficiency · 5 disturbances · Resp 14.6/min
+Sleep need: ~8.2h tonight (2.1h debt)
+
+🔋 *Strain* — 8.3/21 so far · Avg HR 68bpm
+
+🏃 *Last workout* — Walking 60min · Strain 4.4/21 · Avg HR 97bpm · Max 132bpm
+
+_Moderate day. Sleep debt is the main flag — time-boxed tasks, 25–30 min blocks._
+```
+
+Rules:
+- No opening line ("Here's your Whoop data" etc.) — start directly with the first emoji
+- One italicised summary line at the end covering recovery colour + any notable flags (debt, high strain, etc.)
+- Omit any field that is null; omit an entire line if all its fields are null
+- Only include workout if `workout.start` is within the last 48 hours
+- Omit strain line if `cycle.strain` is null
+- Distance only if non-null
+
 ## Morning briefing format
 
 Add a *Body* section to the briefing. Use Telegram-friendly formatting — `*bold*` labels, short lines, emoji markers:
