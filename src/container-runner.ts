@@ -345,6 +345,16 @@ function buildContainerArgs(
     if (value) args.push('-e', `${key}=${value}`);
   }
 
+  // Whoop API credentials (health metrics)
+  const whoopVars = readEnvFile([
+    'WHOOP_CLIENT_ID',
+    'WHOOP_CLIENT_SECRET',
+    'WHOOP_REFRESH_TOKEN',
+  ]);
+  for (const [key, value] of Object.entries(whoopVars)) {
+    if (value) args.push('-e', `${key}=${value}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 
