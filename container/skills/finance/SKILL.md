@@ -1,6 +1,6 @@
 ---
 name: finance
-description: Read Tobi's Monzo transaction data from Google Sheets and provide personal finance insights — allowance pot balance, spending by category, weekly check-ins, and proactive alerts. Use whenever asked about money, spending, allowance, budget, or transactions.
+description: Read Tobi's Monzo transaction data from Google Sheets and provide personal finance insights — main account balance, allowance spending by category, weekly check-ins, and proactive alerts. Use whenever asked about money, spending, balance, allowance, or transactions.
 allowed-tools: Bash(curl*), Bash(jq*), Bash(cat*), Bash(echo*), Bash(date*), Bash(mkdir*), Bash(cp*)
 ---
 
@@ -14,26 +14,28 @@ Credentials are injected as environment variables — never log or expose them:
 
 Config and state are stored in `/workspace/extra/nanoclaw-config/finance/`:
 - `config.json` — allowance amount and alert thresholds
-- `state/YYYY-MM.json` — monthly state (updated each check-in)
+- `state/YYYY-MM.json` — monthly state (anchor, alerts fired)
 
 ## Financial Structure
 
 ```
 Salary → Monzo Main Account
-  → Fixed Expenses Pot  (bills — excluded from allowance tracking)
-  → Repayments Pot      (savings/debt — excluded from allowance tracking)
-  → £1,000/month stays in main account for personal spending (PRIMARY FOCUS)
+  → Fixed Expenses Pot  (bills — covered by Direct Debits, excluded from allowance tracking)
+  → Repayments Pot      (loan repayments — excluded from allowance tracking)
+  → Remainder stays in main account for personal spending (PRIMARY FOCUS)
 ```
+
+Card payments come directly from the main account. Loan repayments go out as Faster Payments (categorised as Transfers — excluded automatically). Bills are covered by the Fixed Expenses Pot via Direct Debits (excluded automatically).
 
 **Never read the `Joint Account Transactions` tab** — always use `Personal Account Transactions` only.
 
 ## Allowance model
 
-The allowance is £1,000/month (from config). Spending is tracked from **card payments** and personal peer-to-peer transfers. Excluded: Direct Debits (bills via Fixed Expenses Pot), Instalment loans (Repayments Pot), Pot transfers, and Transfers-category transactions.
+The allowance budget is £1,000/month (from config). Spending is tracked from **card payments** and personal peer-to-peer transfers. Excluded: Direct Debits (bills via Fixed Expenses Pot), Instalment loans, Pot transfers (internal), Transfers-category transactions (salary in, loan repayments out), and Income-category transactions.
 
 ## Fetch transactions for the current month
 
-Run `monzo-fetch.sh` to get this month's transactions as JSON. It merges Google Sheets data with any manual CSV exports in the finance folder:
+Run `monzo-fetch.sh` to get this month's transactions as JSON:
 
 ```bash
 bash /home/node/.claude/skills/finance/monzo-fetch.sh
@@ -41,87 +43,111 @@ bash /home/node/.claude/skills/finance/monzo-fetch.sh
 
 Output: JSON array of `{transaction_id, date, time, type, name, category, amount}` for the current month.
 
-The script automatically reads any `.csv` files from `/workspace/extra/nanoclaw-shared/finance/` and merges them with the Google Sheet data (CSV wins on duplicate transaction IDs). This handles the March 2026 transition period where card payments from the Allowance Pot were in a manual export.
+The script merges Google Sheets data with any manual CSV supplements in `/workspace/extra/nanoclaw-shared/finance/` (CSV wins on duplicate transaction IDs — used for the March 2026 transition period).
 
 ## Calculate allowance summary
 
 ```bash
 bash /home/node/.claude/skills/finance/monzo-fetch.sh > /tmp/monzo-raw.json
-bash /home/node/.claude/skills/finance/allowance-summary.sh /tmp/monzo-raw.json /workspace/extra/nanoclaw-config/finance/config.json
+bash /home/node/.claude/skills/finance/allowance-summary.sh \
+  /tmp/monzo-raw.json \
+  /workspace/extra/nanoclaw-config/finance/config.json \
+  /workspace/extra/nanoclaw-config/finance/state/$(date +%Y-%m).json
 ```
 
-Output: JSON with `allowance_monthly`, `total_spent`, `allowance_remaining`, `spend_by_category`, `projected_spend`, `projected_remaining`.
+Output fields:
+- `total_spent` — net card payment spend this month
+- `allowance_remaining` — £1,000 − total_spent
+- `spend_by_category` — breakdown by Monzo category
+- `projected_spend` / `projected_remaining` — pace-based projection
+- `current_balance` — main account balance (only if anchor is set in state file)
+- `anchor_date` — date the anchor was last set
+
+## Balance anchor
+
+The sheet has no running balance column, so the current main account balance is calculated from an anchor: a known confirmed balance at a specific date, plus the net of all transactions since that date.
+
+**Anchor is stored in the state file:**
+```json
+"anchor": { "date": "2026-03-21", "balance": 1234.56 }
+```
+
+**When to update the anchor:**
+- When Tobi replies to the Friday balance request with a figure
+- When Tobi says "my balance is £X" or "I have £X in my account" in any conversation
+- Store immediately: read state file, set `anchor.date` to today, `anchor.balance` to the figure, write back
+
+**How current_balance is calculated:**
+`anchor.balance + sum(ALL transaction amounts since anchor.date)`
+This includes pot transfers, salary, card payments, direct debits — everything that moves the main account balance.
+
+**If anchor is null or stale (>7 days old):** report `total_spent` and `allowance_remaining` from card payments, but note that balance is unavailable — ask Tobi to confirm his current main account balance.
 
 ## Sheet columns
 
 `Transaction ID, Date, Time, Type, Name, Emoji, Category, Amount, Currency, Local amount, Local currency, Notes and #tags, Address, Receipt, Description, Category split`
 
 Key transaction types:
-- `Pot transfer` + Name `Allowance Pot` — pot movements (negative = money loaded IN, positive = money withdrawn OUT)
-- `Pot transfer` + Name `Fixed Expenses Pot` — bills
-- Card payments / contactless — actual spending (grouped by Category for breakdown)
+- `Card payment` — personal spending (main category for allowance tracking)
+- `Pot transfer` + Name `Fixed Expenses Pot` — bill pot movements (internal, excluded)
+- `Pot transfer` + Name `Repayments Pot` — repayment pot movements (internal, excluded)
+- `Direct Debit` — bills paid by Fixed Expenses Pot (excluded)
+- `Faster payment` category `Transfers` — salary in or loan repayments out (excluded)
+- `Faster payment` category `General` etc. — personal bank transfers (included)
 
 ## State file format
-
-Write state to `/workspace/extra/nanoclaw-config/finance/state/YYYY-MM.json` after each check-in:
 
 ```json
 {
   "month": "2026-03",
-  "last_updated": "2026-03-14T17:00:00Z",
-  "allowance_loaded": 1000.00,
-  "allowance_withdrawn": 420.50,
-  "allowance_remaining": 579.50,
-  "spend_by_category": {
-    "eating_out": 85.20,
-    "shopping": 143.50,
-    "transport": 42.80,
-    "entertainment": 35.00,
-    "other": 114.00
-  },
-  "alerts_fired": ["milestone_100", "milestone_200", "milestone_300", "milestone_400"]
+  "last_updated": "2026-03-21T17:00:00Z",
+  "anchor": { "date": "2026-03-21", "balance": 1234.56 },
+  "alerts_fired": ["milestone_100", "milestone_200"]
 }
 ```
 
+`anchor` is `null` until Tobi confirms his balance.
 `alerts_fired` tracks which £100 milestones have been sent this month to avoid duplicates.
 
 ## Weekly check-in message format
 
 ```
-📊 Weekly Finance Check-in — w/c 9 Mar
+📊 Weekly Finance Check-in — w/c 16 Mar
 
-Allowance Pot: £579 remaining of £1,000
-▓▓▓▓▓▓░░░░  42% spent  |  15 days left in March
+Allowance: £716 remaining of £1,000
+▓▓▓▓░░░░░░  28% spent  |  12 days left in March
 
-You're on a good pace — projected to finish the month with ~£350 left.
+You're on a good pace — projected to finish the month with ~£400 left.
 
 Spending by category this month:
-• Shopping       £143
-• Eating out      £85
-• Transport       £43
-• Entertainment   £35
-• Other          £114
+• Shopping        £143
+• Eating out       £85
+• Transport        £43
+• Entertainment    £35
+• General          £22
 
 Notable transactions this week:
-• 10 Mar — Amazon £47.20
-• 11 Mar — Deliveroo £18.50
-• 13 Mar — ASOS £96.30
+• 17 Mar — Amazon £47.20
+• 18 Mar — Deliveroo £18.50
+
+Main account balance: £1,234 (as of 14 Mar)
+
+What's your current main account balance? I'll keep it updated.
 ```
 
+If no anchor is set, omit the balance line and ask for the balance at the end.
 Use *bold* (single asterisks) for Telegram. No markdown headings.
 
 ## Alert message format (fires at each £100 milestone)
 
 ```
-💸 Allowance — £400 spent
+💸 Allowance — £200 spent
 
-£600 remaining of £1,000  |  16 Mar  |  15 days left
+£800 remaining of £1,000  |  10 Mar  |  21 days left
 
 Spent this month by category:
-• Shopping       £182
-• Eating out      £95
-• Transport       £68
-• Entertainment   £55
+• Shopping        £143
+• Eating out       £57
 ```
 
 ## Month-start message format (1st of each month)
@@ -129,16 +155,16 @@ Spent this month by category:
 ```
 📅 March complete — finance reset done.
 
-Feb allowance: £1,000 loaded, £843 spent  ✓  £157 unspent
+March: £843 spent of £1,000 budget  ✓  £157 under budget
 Biggest category: Shopping £298
 
-April allowance pot loaded with £1,000. Let me know if you want to adjust the monthly amount or alert thresholds.
+April tracking started. What's your current main account balance?
 ```
 
 ## Guidelines
 
 - Always fetch fresh data from Google Sheets before answering finance questions
 - Never store raw transaction data (merchant names etc.) — only aggregate totals in state files
-- If derived balance looks implausible (e.g. loaded > £2,000 or remaining negative by large amount), flag it
-- Spending categories are all main-account card payments — a useful proxy for allowance spending but not precise attribution
+- If `current_balance` looks implausible (e.g. negative by a large amount or over £10,000), flag it
 - If `GOOGLE_SHEETS_SA_KEY` or `MONZO_SHEET_ID` are missing/empty, tell the user the credentials haven't been configured yet
+- March 2026 is a transition month — card payments before ~17 March came from a separate Allowance Pot account and are included via CSV supplements; from April everything flows through the main account directly
