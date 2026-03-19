@@ -89,49 +89,57 @@ Any field may be `null` if not yet synced or unavailable. Handle gracefully — 
 | 14–17 | High |
 | 18–21 | All Out |
 
+## Progress bars
+
+Use 10-character `▓░` bars to give instant visual context for scores and fills. Rules:
+- Recovery: `filled = round(score / 10)`, e.g. 53% → 5 filled → `▓▓▓▓▓░░░░░`
+- Sleep fill: `filled = min(10, round(total_hours / need_hours * 10))`, e.g. 6.5/9.8h → 7 filled → `▓▓▓▓▓▓▓░░░`
+- Strain: `filled = round(strain / 21 * 10)`, e.g. 4.4/21 → 2 filled → `▓▓░░░░░░░░`
+
 ## On-demand format (direct questions about Whoop stats)
 
-When Tobi asks directly ("how's my Whoop stats", "what's my recovery", etc.), reply with **only** the formatted block below — no preamble, no trailing paragraph, no "---" separator. One concise contextual line goes at the very end, inside the block.
+When Tobi asks directly ("how's my Whoop stats", "what's my recovery", etc.), reply with **only** the block below — no preamble, no trailing paragraph, no "---" separator.
 
 ```
-💪 *Recovery* — 53% 🟡 · HRV 29ms · RHR 75bpm · SpO2 94% · Skin 35.4°C
+💪 *Recovery* — 53% 🟡  ▓▓▓▓▓░░░░░
+HRV 29ms · RHR 75bpm · SpO2 94% · Skin 35.4°C
 
-😴 *Sleep* — 6.5h · Deep 1.8h · REM 2.5h · Light 1.7h
-78% performance · 93% efficiency · 5 disturbances · Resp 14.6/min
-Sleep need: ~8.2h tonight (2.1h debt)
+😴 *Sleep* — 6.5h / 9.8h needed  ▓▓▓▓▓▓▓░░░
+Deep 1.8h · REM 2.5h · Light 1.7h · Awake 0.5h
+78% performance · 93% efficiency · 5 disturbances · ⚠️ 2.1h debt
 
-🔋 *Strain* — 8.3/21 so far · Avg HR 68bpm
+🔋 *Strain* — 4.4 / 21  ▓▓░░░░░░░░  _(cycle in progress)_
+Avg HR 68bpm
 
-🏃 *Last workout* — Walking 60min · Strain 4.4/21 · Avg HR 97bpm · Max 132bpm
+🏃 *Last workout* — Walking · 60min · Avg HR 97bpm · Max 132bpm
 
-_Moderate day. Sleep debt is the main flag — time-boxed tasks, 25–30 min blocks._
+_Moderate day. 2.1h sleep debt is the main flag — aim for an early night._
 ```
 
 Rules:
-- No opening line ("Here's your Whoop data" etc.) — start directly with the first emoji
-- One italicised summary line at the end covering recovery colour + any notable flags (debt, high strain, etc.)
+- No opening line — start directly with the first emoji
+- Progress bar on the same line as the header, after two spaces
+- One italicised summary line at the end: recovery colour + any notable flags (debt ≥1h, strain >15)
 - Omit any field that is null; omit an entire line if all its fields are null
 - Only include workout if `workout.start` is within the last 48 hours
-- Omit strain line if `cycle.strain` is null
-- Distance only if non-null
+- Omit strain line if `cycle.strain` is null; omit distance if null
+- If sleep need is null, omit the "/ Xh needed" part and skip the bar
 
 ## Morning briefing format
 
-Add a *Body* section to the briefing. Use Telegram-friendly formatting — `*bold*` labels, short lines, emoji markers:
+Add a *Body* section to the briefing using the same visual style:
 
 ```
 💪 *Body*
-Recovery: 53% 🟡 · HRV 29ms · RHR 75bpm · SpO2 94% · Skin 35.4°C
+Recovery: 53% 🟡  ▓▓▓▓▓░░░░░  HRV 29ms · RHR 75bpm · SpO2 94%
 _Moderate day — structured work recommended_
 
-😴 *Sleep*
-6.5h total · Deep 1.8h · REM 2.5h · Light 1.7h · 5 disturbances
-78% performance · 93% efficiency · Resp 14.6/min
-Sleep need tonight: ~8.2h (0.8h debt)
+😴 *Sleep* — 6.5h / 9.8h  ▓▓▓▓▓▓▓░░░  · ⚠️ 2.1h debt
+Deep 1.8h · REM 2.5h · Light 1.7h · 5 disturbances · 93% efficiency
 
-🔋 *Strain* so far: 8.3/21 · Avg HR 68bpm _(in progress)_
+🔋 *Strain* so far: 4.4 / 21  ▓▓░░░░░░░░  · Avg HR 68bpm
 
-🏃 *Last workout* — Running 45min · 8.4km · Strain 14.2/21 · Avg HR 152bpm
+🏃 *Last workout* — Walking · 60min · Avg HR 97bpm
 ```
 
 Rules:
