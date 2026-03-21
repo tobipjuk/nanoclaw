@@ -27,6 +27,7 @@ interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  model?: string;
 }
 
 interface ContainerOutput {
@@ -451,10 +452,15 @@ async function runQuery(
     log(`Additional directories: ${extraDirs.join(', ')}`);
   }
 
+  if (containerInput.model) {
+    log(`Using model override: ${containerInput.model}`);
+  }
+
   for await (const message of query({
     prompt: stream,
     options: {
       cwd: '/workspace/group',
+      model: containerInput.model || undefined,
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
