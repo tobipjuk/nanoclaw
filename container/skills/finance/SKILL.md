@@ -35,7 +35,7 @@ The allowance budget is £1,000/month (from config). Spending is tracked from **
 
 ## Fetch transactions for the current month
 
-Run `monzo-fetch.sh` to get this month's transactions as JSON:
+Run `monzo-fetch.sh` to get this month's **raw** transactions as JSON:
 
 ```bash
 bash /home/node/.claude/skills/finance/monzo-fetch.sh
@@ -44,6 +44,24 @@ bash /home/node/.claude/skills/finance/monzo-fetch.sh
 Output: JSON array of `{transaction_id, date, time, type, name, category, amount}` for the current month.
 
 The script merges Google Sheets data with any manual CSV supplements in `/workspace/extra/nanoclaw-shared/finance/` (CSV wins on duplicate transaction IDs — used for the March 2026 transition period).
+
+## Get filtered (allowance-relevant) transactions
+
+**Always use `monzo-transactions.sh` for per-transaction queries** (e.g. "show me shopping transactions", "what did I spend on eating out"). It applies the same exclusion filters as `allowance-summary.sh`:
+
+```bash
+bash /home/node/.claude/skills/finance/monzo-transactions.sh
+```
+
+Or pass a pre-fetched file to avoid re-fetching:
+
+```bash
+bash /home/node/.claude/skills/finance/monzo-transactions.sh /tmp/monzo-raw.json
+```
+
+Output: filtered JSON array — excludes Pot transfers, Direct Debits, Instalment loans, Transfers-category, and Income-category transactions.
+
+Use `monzo-fetch.sh` directly **only** when all transaction types are needed (e.g. balance anchor calculation).
 
 ## Calculate allowance summary
 
