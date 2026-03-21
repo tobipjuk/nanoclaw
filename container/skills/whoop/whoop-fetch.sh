@@ -76,96 +76,102 @@ safe_fetch() {
   echo "$body" | jq -e . >/dev/null 2>&1 && echo "$body" || echo '{}'
 }
 
-RECOVERY=$(safe_fetch "https://api.prod.whoop.com/developer/v2/recovery?limit=1")
-SLEEP=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/activity/sleep?limit=1")
-CYCLE=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/cycles?limit=1")
-WORKOUT=$(safe_fetch  "https://api.prod.whoop.com/developer/v2/activity/workout?limit=1")
+# Whoop API v2 returns records in ascending order (oldest first), so limit=1 without
+# a start date returns the oldest record ever. Use a 3-day window and pick the last
+# record (.records[-1]) to get the most recent data.
+START_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00.000Z 2>/dev/null \
+  || date -u -v-3d +%Y-%m-%dT00:00:00.000Z)  # fallback for BSD date (macOS)
+
+RECOVERY=$(safe_fetch "https://api.prod.whoop.com/developer/v2/recovery?limit=5&start=${START_DATE}")
+SLEEP=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/activity/sleep?limit=5&start=${START_DATE}")
+CYCLE=$(safe_fetch    "https://api.prod.whoop.com/developer/v2/cycles?limit=5&start=${START_DATE}")
+WORKOUT=$(safe_fetch  "https://api.prod.whoop.com/developer/v2/activity/workout?limit=5&start=${START_DATE}")
 
 # ── Extract recovery fields ────────────────────────────────────────────────────
 
-RECOVERY_SCORE=$(echo "$RECOVERY"  | jq -r '.records[0].score.recovery_score // null')
-HRV=$(echo "$RECOVERY"             | jq -r '.records[0].score.hrv_rmssd_milli // null')
-RHR=$(echo "$RECOVERY"             | jq -r '.records[0].score.resting_heart_rate // null')
-SPO2=$(echo "$RECOVERY"            | jq -r '.records[0].score.spo2_percentage // null')
-SKIN_TEMP=$(echo "$RECOVERY"       | jq -r '.records[0].score.skin_temp_celsius // null')
+RECOVERY_SCORE=$(echo "$RECOVERY"  | jq -r '.records[-1].score.recovery_score // null')
+HRV=$(echo "$RECOVERY"             | jq -r '.records[-1].score.hrv_rmssd_milli // null')
+RHR=$(echo "$RECOVERY"             | jq -r '.records[-1].score.resting_heart_rate // null')
+SPO2=$(echo "$RECOVERY"            | jq -r '.records[-1].score.spo2_percentage // null')
+SKIN_TEMP=$(echo "$RECOVERY"       | jq -r '.records[-1].score.skin_temp_celsius // null')
 
 # ── Extract sleep fields ───────────────────────────────────────────────────────
 
-SLEEP_PERFORMANCE=$(echo "$SLEEP" | jq -r '.records[0].score.sleep_performance_percentage // null')
-SLEEP_CONSISTENCY=$(echo "$SLEEP" | jq -r '.records[0].score.sleep_consistency_percentage // null')
-SLEEP_EFFICIENCY=$(echo "$SLEEP"  | jq -r '.records[0].score.sleep_efficiency_percentage // null')
-RESP_RATE=$(echo "$SLEEP"         | jq -r '.records[0].score.respiratory_rate // null')
-IS_NAP=$(echo "$SLEEP"            | jq -r 'if .records[0].nap != null then .records[0].nap else null end')
+SLEEP_PERFORMANCE=$(echo "$SLEEP" | jq -r '.records[-1].score.sleep_performance_percentage // null')
+SLEEP_CONSISTENCY=$(echo "$SLEEP" | jq -r '.records[-1].score.sleep_consistency_percentage // null')
+SLEEP_EFFICIENCY=$(echo "$SLEEP"  | jq -r '.records[-1].score.sleep_efficiency_percentage // null')
+RESP_RATE=$(echo "$SLEEP"         | jq -r '.records[-1].score.respiratory_rate // null')
+IS_NAP=$(echo "$SLEEP"            | jq -r 'if .records[-1].nap != null then .records[-1].nap else null end')
 
 SLEEP_HOURS=$(echo "$SLEEP" | jq -r '
-  .records[0].score.stage_summary |
+  .records[-1].score.stage_summary |
   if . != null then ((.total_in_bed_time_milli // 0) / 3600000 * 10 | round) / 10
   else null end')
 
 DEEP_HOURS=$(echo "$SLEEP" | jq -r '
-  .records[0].score.stage_summary |
+  .records[-1].score.stage_summary |
   if . != null then ((.total_slow_wave_sleep_time_milli // 0) / 3600000 * 10 | round) / 10
   else null end')
 
 REM_HOURS=$(echo "$SLEEP" | jq -r '
-  .records[0].score.stage_summary |
+  .records[-1].score.stage_summary |
   if . != null then ((.total_rem_sleep_time_milli // 0) / 3600000 * 10 | round) / 10
   else null end')
 
 LIGHT_HOURS=$(echo "$SLEEP" | jq -r '
-  .records[0].score.stage_summary |
+  .records[-1].score.stage_summary |
   if . != null then ((.total_light_sleep_time_milli // 0) / 3600000 * 10 | round) / 10
   else null end')
 
 AWAKE_HOURS=$(echo "$SLEEP" | jq -r '
-  .records[0].score.stage_summary |
+  .records[-1].score.stage_summary |
   if . != null then ((.total_awake_time_milli // 0) / 3600000 * 10 | round) / 10
   else null end')
 
-SLEEP_CYCLES=$(echo "$SLEEP"       | jq -r '.records[0].score.stage_summary.sleep_cycle_count // null')
-DISTURBANCES=$(echo "$SLEEP"       | jq -r '.records[0].score.stage_summary.disturbance_count // null')
+SLEEP_CYCLES=$(echo "$SLEEP"       | jq -r '.records[-1].score.stage_summary.sleep_cycle_count // null')
+DISTURBANCES=$(echo "$SLEEP"       | jq -r '.records[-1].score.stage_summary.disturbance_count // null')
 
 SLEEP_NEED_TOTAL=$(echo "$SLEEP" | jq -r '
-  .records[0].score.sleep_needed |
+  .records[-1].score.sleep_needed |
   if . != null then
     (((.baseline_milli // 0) + (.need_from_sleep_debt_milli // 0) + (.need_from_recent_strain_milli // 0) + (.need_from_recent_nap_milli // 0))
     / 3600000 * 10 | round) / 10
   else null end')
 
 SLEEP_NEED_DEBT=$(echo "$SLEEP" | jq -r '
-  .records[0].score.sleep_needed.need_from_sleep_debt_milli // null |
+  .records[-1].score.sleep_needed.need_from_sleep_debt_milli // null |
   if . != null then (. / 3600000 * 10 | round) / 10 else null end')
 
 # ── Extract cycle / strain fields ─────────────────────────────────────────────
 
-CYCLE_STRAIN=$(echo "$CYCLE"    | jq -r '.records[0].score.strain // null')
-CYCLE_KJ=$(echo "$CYCLE"        | jq -r '.records[0].score.kilojoule // null')
-CYCLE_AVG_HR=$(echo "$CYCLE"    | jq -r '.records[0].score.average_heart_rate // null')
-CYCLE_MAX_HR=$(echo "$CYCLE"    | jq -r '.records[0].score.max_heart_rate // null')
-CYCLE_START=$(echo "$CYCLE"     | jq -r '.records[0].start // null')
-CYCLE_END=$(echo "$CYCLE"       | jq -r '.records[0].end // null')  # null = current cycle
+CYCLE_STRAIN=$(echo "$CYCLE"    | jq -r '.records[-1].score.strain // null')
+CYCLE_KJ=$(echo "$CYCLE"        | jq -r '.records[-1].score.kilojoule // null')
+CYCLE_AVG_HR=$(echo "$CYCLE"    | jq -r '.records[-1].score.average_heart_rate // null')
+CYCLE_MAX_HR=$(echo "$CYCLE"    | jq -r '.records[-1].score.max_heart_rate // null')
+CYCLE_START=$(echo "$CYCLE"     | jq -r '.records[-1].start // null')
+CYCLE_END=$(echo "$CYCLE"       | jq -r '.records[-1].end // null')  # null = current cycle
 
 # ── Extract latest workout fields ─────────────────────────────────────────────
 
-WORKOUT_SPORT=$(echo "$WORKOUT"   | jq -r '.records[0].sport_name // null')
-WORKOUT_STRAIN=$(echo "$WORKOUT"  | jq -r '.records[0].score.strain // null')
-WORKOUT_AVG_HR=$(echo "$WORKOUT"  | jq -r '.records[0].score.average_heart_rate // null')
-WORKOUT_MAX_HR=$(echo "$WORKOUT"  | jq -r '.records[0].score.max_heart_rate // null')
-WORKOUT_KJ=$(echo "$WORKOUT"      | jq -r '.records[0].score.kilojoule // null')
-WORKOUT_START=$(echo "$WORKOUT"   | jq -r '.records[0].start // null')
-WORKOUT_END=$(echo "$WORKOUT"     | jq -r '.records[0].end // null')
+WORKOUT_SPORT=$(echo "$WORKOUT"   | jq -r '.records[-1].sport_name // null')
+WORKOUT_STRAIN=$(echo "$WORKOUT"  | jq -r '.records[-1].score.strain // null')
+WORKOUT_AVG_HR=$(echo "$WORKOUT"  | jq -r '.records[-1].score.average_heart_rate // null')
+WORKOUT_MAX_HR=$(echo "$WORKOUT"  | jq -r '.records[-1].score.max_heart_rate // null')
+WORKOUT_KJ=$(echo "$WORKOUT"      | jq -r '.records[-1].score.kilojoule // null')
+WORKOUT_START=$(echo "$WORKOUT"   | jq -r '.records[-1].start // null')
+WORKOUT_END=$(echo "$WORKOUT"     | jq -r '.records[-1].end // null')
 
 WORKOUT_MINS=$(echo "$WORKOUT" | jq -r '
-  if .records[0].start != null and .records[0].end != null then
-    ((.records[0].end | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) - (.records[0].start | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) / 60 | round
+  if .records[-1].start != null and .records[-1].end != null then
+    ((.records[-1].end | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) - (.records[-1].start | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) / 60 | round
   else null end')
 
 WORKOUT_DIST_KM=$(echo "$WORKOUT" | jq -r '
-  .records[0].score.distance_meter // null |
+  .records[-1].score.distance_meter // null |
   if . != null then (. / 1000 * 10 | round) / 10 else null end')
 
 WORKOUT_ZONES=$(echo "$WORKOUT" | jq -r '
-  .records[0].score.zone_durations |
+  .records[-1].score.zone_durations |
   if . != null then {
     z0: ((.zone_zero_milli // 0) / 60000 | round),
     z1: ((.zone_one_milli // 0) / 60000 | round),
