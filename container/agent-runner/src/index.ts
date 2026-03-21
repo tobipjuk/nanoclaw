@@ -74,6 +74,43 @@ interface SDKUserMessage {
 const IPC_INPUT_DIR = '/workspace/ipc/input';
 const IPC_INPUT_CLOSE_SENTINEL = path.join(IPC_INPUT_DIR, '_close');
 const IPC_POLL_MS = 500;
+const USAGE_LOG_DIR = '/workspace/extra/nanoclaw-config/usage';
+
+interface UsageLogEntry {
+  timestamp: string;
+  group: string;
+  model: string | null;
+  is_scheduled_task: boolean;
+  total_cost_usd: number;
+  duration_ms: number;
+  duration_api_ms: number;
+  num_turns: number;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+  };
+  model_usage: Record<string, {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadInputTokens: number;
+    cacheCreationInputTokens: number;
+    costUSD: number;
+  }>;
+}
+
+function appendUsageLog(entry: UsageLogEntry): void {
+  try {
+    fs.mkdirSync(USAGE_LOG_DIR, { recursive: true });
+    const month = entry.timestamp.slice(0, 7); // YYYY-MM
+    const logFile = path.join(USAGE_LOG_DIR, `${month}.jsonl`);
+    fs.appendFileSync(logFile, JSON.stringify(entry) + '\n');
+    log(`Usage logged: $${entry.total_cost_usd.toFixed(4)} (${entry.usage.input_tokens} in / ${entry.usage.output_tokens} out)`);
+  } catch (err) {
+    log(`Failed to write usage log: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
 
 /**
  * Push-based async iterable for streaming user messages to the SDK.
@@ -524,6 +561,30 @@ async function runQuery(
         result: textResult || null,
         newSessionId
       });
+
+      // Log usage data from the final result message
+      const resultMsg = message as unknown as {
+        total_cost_usd?: number;
+        duration_ms?: number;
+        duration_api_ms?: number;
+        num_turns?: number;
+        usage?: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number };
+        modelUsage?: Record<string, { inputTokens: number; outputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number; costUSD: number }>;
+      };
+      if (resultMsg.usage && typeof resultMsg.total_cost_usd === 'number') {
+        appendUsageLog({
+          timestamp: new Date().toISOString(),
+          group: containerInput.groupFolder,
+          model: containerInput.model || null,
+          is_scheduled_task: containerInput.isScheduledTask || false,
+          total_cost_usd: resultMsg.total_cost_usd,
+          duration_ms: resultMsg.duration_ms || 0,
+          duration_api_ms: resultMsg.duration_api_ms || 0,
+          num_turns: resultMsg.num_turns || 0,
+          usage: resultMsg.usage,
+          model_usage: resultMsg.modelUsage || {},
+        });
+      }
     }
   }
 

@@ -1,22 +1,19 @@
 #!/bin/bash
-# Fetch this month's cost report grouped by description (daily buckets)
-# Requires: ANTHROPIC_ADMIN_KEY environment variable
+# Read this month's usage from the local usage log
+# Data is captured by the agent-runner from SDK result messages
 
 set -euo pipefail
 
-if [ -z "${ANTHROPIC_ADMIN_KEY:-}" ]; then
-  echo '{"error": "ANTHROPIC_ADMIN_KEY not set. Generate an Admin API key at console.anthropic.com > Settings > Admin Keys."}'
-  exit 1
+USAGE_DIR="/workspace/extra/nanoclaw-config/usage"
+MONTH=$(date -u +%Y-%m)
+LOG_FILE="${USAGE_DIR}/${MONTH}.jsonl"
+
+if [ ! -f "$LOG_FILE" ]; then
+  echo '{"error": "No usage data yet for this month. Usage tracking starts from the next container run."}'
+  exit 0
 fi
 
-MONTH_START=$(date -u +%Y-%m-01T00:00:00Z)
-# Next month start
-NEXT_MONTH=$(date -u -d "$(date -u +%Y-%m-01) +1 month" +%Y-%m-01T00:00:00Z)
-
-curl -s "https://api.anthropic.com/v1/organizations/cost_report?\
-starting_at=${MONTH_START}&\
-ending_at=${NEXT_MONTH}&\
-group_by[]=description&\
-bucket_width=1d" \
-  --header "anthropic-version: 2023-06-01" \
-  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+# Output the full month's data as JSON array
+echo '['
+sed '$!s/$/,/' "$LOG_FILE"
+echo ']'

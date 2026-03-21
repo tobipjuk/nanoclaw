@@ -1,21 +1,20 @@
 #!/bin/bash
-# Fetch today's API usage grouped by model (hourly buckets)
-# Requires: ANTHROPIC_ADMIN_KEY environment variable
+# Read today's usage from the local usage log
+# Data is captured by the agent-runner from SDK result messages
 
 set -euo pipefail
 
-if [ -z "${ANTHROPIC_ADMIN_KEY:-}" ]; then
-  echo '{"error": "ANTHROPIC_ADMIN_KEY not set. Generate an Admin API key at console.anthropic.com > Settings > Admin Keys."}'
-  exit 1
+USAGE_DIR="/workspace/extra/nanoclaw-config/usage"
+MONTH=$(date -u +%Y-%m)
+LOG_FILE="${USAGE_DIR}/${MONTH}.jsonl"
+TODAY=$(date -u +%Y-%m-%d)
+
+if [ ! -f "$LOG_FILE" ]; then
+  echo '{"error": "No usage data yet. Usage tracking starts from the next container run."}'
+  exit 0
 fi
 
-TODAY=$(date -u +%Y-%m-%dT00:00:00Z)
-TOMORROW=$(date -u -d "+1 day" +%Y-%m-%dT00:00:00Z)
-
-curl -s "https://api.anthropic.com/v1/organizations/usage_report/messages?\
-starting_at=${TODAY}&\
-ending_at=${TOMORROW}&\
-group_by[]=model&\
-bucket_width=1h" \
-  --header "anthropic-version: 2023-06-01" \
-  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+# Filter to today's entries and output as JSON array
+echo '['
+grep "\"timestamp\":\"${TODAY}" "$LOG_FILE" | sed '$!s/$/,/'
+echo ']'

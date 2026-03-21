@@ -1,93 +1,108 @@
 ---
 name: api-usage
-description: Query Anthropic API usage and cost data — token counts by model, daily/hourly spend, cost breakdowns. Use whenever asked about API usage, spend, token consumption, or Claude costs.
-allowed-tools: Bash(curl*), Bash(jq*), Bash(date*), Bash(cat*), Bash(echo*)
+description: Query Orion's API usage and cost data — token counts by model, daily spend, cost breakdowns. Use whenever asked about API usage, spend, token consumption, or Claude costs.
+allowed-tools: Bash(bash*), Bash(jq*), Bash(date*), Bash(cat*), Bash(grep*), Bash(awk*)
 ---
 
-# Anthropic API Usage & Cost
+# Orion API Usage & Cost Tracking
 
-Queries the Anthropic Admin API for usage and cost data. Requires an Admin API key.
+Reads usage data from local logs. Every container run automatically logs token counts, costs, and model breakdown to JSONL files in `/workspace/extra/nanoclaw-config/usage/`.
 
-Credentials are injected as environment variables — never log or expose them:
-- `ANTHROPIC_ADMIN_KEY` — Admin API key (starts with `sk-ant-admin...`)
-
-Base URL: `https://api.anthropic.com`
-Auth header: `x-api-key: $ANTHROPIC_ADMIN_KEY`
-Required header: `anthropic-version: 2023-06-01`
-
-## Fetch today's usage by model
+## Fetch today's usage
 
 ```bash
 bash /home/node/.claude/skills/api-usage/usage-report.sh
 ```
 
-Returns JSON with today's token usage grouped by model (1-hour buckets).
+Returns JSON array of today's usage entries.
 
-## Fetch cost report
+## Fetch this month's usage
 
 ```bash
 bash /home/node/.claude/skills/api-usage/cost-report.sh
 ```
 
-Returns JSON with this month's daily costs grouped by description (includes model info).
+Returns JSON array of all entries for the current month.
 
-## Custom queries
-
-### Daily usage for a date range (by model)
+## Read a specific month
 
 ```bash
-curl -s "https://api.anthropic.com/v1/organizations/usage_report/messages?\
-starting_at=2026-03-01T00:00:00Z&\
-ending_at=2026-03-21T00:00:00Z&\
-group_by[]=model&\
-bucket_width=1d" \
-  --header "anthropic-version: 2023-06-01" \
-  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+cat /workspace/extra/nanoclaw-config/usage/YYYY-MM.jsonl
 ```
 
-### Hourly usage for a specific day
+## Log entry format
 
+Each line in the JSONL is one container run:
+
+```json
+{
+  "timestamp": "2026-03-21T14:30:00.000Z",
+  "group": "main",
+  "model": "claude-haiku-4-5-20251001",
+  "is_scheduled_task": true,
+  "total_cost_usd": 0.0234,
+  "duration_ms": 15000,
+  "duration_api_ms": 8000,
+  "num_turns": 3,
+  "usage": {
+    "input_tokens": 5000,
+    "output_tokens": 1200,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 3000
+  },
+  "model_usage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 5000,
+      "outputTokens": 1200,
+      "cacheReadInputTokens": 3000,
+      "cacheCreationInputTokens": 0,
+      "costUSD": 0.0234
+    }
+  }
+}
+```
+
+## Aggregation with jq
+
+### Total cost today
 ```bash
-curl -s "https://api.anthropic.com/v1/organizations/usage_report/messages?\
-starting_at=2026-03-21T00:00:00Z&\
-ending_at=2026-03-21T23:59:59Z&\
-group_by[]=model&\
-bucket_width=1h" \
-  --header "anthropic-version: 2023-06-01" \
-  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+bash /home/node/.claude/skills/api-usage/usage-report.sh | jq '[.[].total_cost_usd] | add // 0'
 ```
 
-### Monthly cost breakdown
-
+### Cost by model today
 ```bash
-curl -s "https://api.anthropic.com/v1/organizations/cost_report?\
-starting_at=2026-03-01T00:00:00Z&\
-ending_at=2026-04-01T00:00:00Z&\
-group_by[]=description&\
-bucket_width=1d" \
-  --header "anthropic-version: 2023-06-01" \
-  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+bash /home/node/.claude/skills/api-usage/usage-report.sh | jq 'group_by(.model) | map({model: .[0].model, cost: ([.[].total_cost_usd] | add), runs: length})'
 ```
 
-## Response fields
+### Month-to-date total
+```bash
+bash /home/node/.claude/skills/api-usage/cost-report.sh | jq '[.[].total_cost_usd] | add // 0'
+```
 
-### Usage endpoint
-- `uncached_input_tokens` — input tokens not from cache
-- `cache_read_input_tokens` — input tokens served from cache
-- `cache_creation.ephemeral_5m_input_tokens` — tokens used to create 5-min cache
-- `cache_creation.ephemeral_1h_input_tokens` — tokens used to create 1-hour cache
-- `output_tokens` — tokens generated
-- `server_tool_use.web_search_requests` — web search count
-- `model` — model name (when grouped by model)
+### Scheduled vs interactive breakdown
+```bash
+bash /home/node/.claude/skills/api-usage/cost-report.sh | jq 'group_by(.is_scheduled_task) | map({scheduled: .[0].is_scheduled_task, cost: ([.[].total_cost_usd] | add), runs: length})'
+```
 
-### Cost endpoint
-- Costs are in USD cents (decimal strings)
-- Groups by `description` which includes model and geo info
+### Daily cost trend
+```bash
+bash /home/node/.claude/skills/api-usage/cost-report.sh | jq 'group_by(.timestamp[:10]) | map({date: .[0].timestamp[:10], cost: ([.[].total_cost_usd] | add), runs: length})'
+```
 
-## Data freshness
-- Usage data typically appears within 5 minutes of API request completion
-- Polling supported once per minute for sustained use
+## Key fields
 
-## Error handling
-- If `ANTHROPIC_ADMIN_KEY` is missing or empty, tell the user they need to generate an Admin API key at console.anthropic.com > Settings > Admin Keys
-- Admin keys are separate from regular API keys and require admin role
+- `total_cost_usd` — USD cost for this run (from SDK)
+- `usage.input_tokens` — uncached input tokens
+- `usage.output_tokens` — generated tokens
+- `usage.cache_read_input_tokens` — tokens served from cache
+- `usage.cache_creation_input_tokens` — tokens used to create cache
+- `model_usage` — per-model breakdown (when multiple models used via subagents)
+- `is_scheduled_task` — distinguishes cron jobs from interactive messages
+- `duration_ms` — wall-clock time; `duration_api_ms` — API call time only
+
+## Data availability
+
+- Usage tracking starts from when the agent-runner update is deployed
+- No historical data before deployment
+- Each month gets its own file (YYYY-MM.jsonl)
+- Data is written immediately after each container run completes
