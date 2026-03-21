@@ -103,6 +103,24 @@ bash /home/node/.claude/skills/api-usage/cost-report.sh | jq 'group_by(.timestam
 ## Data availability
 
 - Usage tracking starts from when the agent-runner update is deployed
-- No historical data before deployment
+- Pre-deployment spend for March 2026 is seeded in config.json ($34.83)
 - Each month gets its own file (YYYY-MM.jsonl)
 - Data is written immediately after each container run completes
+
+## Budget config
+
+```bash
+cat /workspace/extra/nanoclaw-config/usage/config.json
+```
+
+Fields:
+- `monthly_budget_usd` — target monthly spend (default: $50)
+- `daily_alert_threshold_usd` — flag days exceeding this ($5)
+- `pre_tracking_spend.{YYYY-MM}` — known spend before tracking was deployed (seeded from console)
+
+When reporting, add `pre_tracking_spend` for the month to tracked JSONL totals to get the true MTD figure.
+
+To update the budget:
+```bash
+jq '.monthly_budget_usd = 75' /workspace/extra/nanoclaw-config/usage/config.json > /tmp/cfg.json && mv /tmp/cfg.json /workspace/extra/nanoclaw-config/usage/config.json
+```
