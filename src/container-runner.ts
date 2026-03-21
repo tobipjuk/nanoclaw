@@ -356,6 +356,12 @@ function buildContainerArgs(
     if (value) args.push('-e', `${key}=${value}`);
   }
 
+  // Anthropic Admin API key (usage & cost reporting)
+  const adminVars = readEnvFile(['ANTHROPIC_ADMIN_KEY']);
+  if (adminVars.ANTHROPIC_ADMIN_KEY) {
+    args.push('-e', `ANTHROPIC_ADMIN_KEY=${adminVars.ANTHROPIC_ADMIN_KEY}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 
