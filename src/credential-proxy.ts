@@ -26,6 +26,7 @@ export interface ProxyConfig {
 export function startCredentialProxy(
   port: number,
   host = '127.0.0.1',
+  forceAuthMode?: AuthMode,
 ): Promise<Server> {
   const secrets = readEnvFile([
     'ANTHROPIC_API_KEY',
@@ -34,7 +35,7 @@ export function startCredentialProxy(
     'ANTHROPIC_BASE_URL',
   ]);
 
-  const authMode: AuthMode = secrets.ANTHROPIC_API_KEY ? 'api-key' : 'oauth';
+  const authMode: AuthMode = forceAuthMode ?? (secrets.ANTHROPIC_API_KEY ? 'api-key' : 'oauth');
   const oauthToken =
     secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.ANTHROPIC_AUTH_TOKEN;
 

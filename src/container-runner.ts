@@ -11,6 +11,7 @@ import {
   CONTAINER_MAX_OUTPUT_SIZE,
   CONTAINER_TIMEOUT,
   CREDENTIAL_PROXY_PORT,
+  CREDENTIAL_PROXY_OAUTH_PORT,
   DATA_DIR,
   GROUPS_DIR,
   IDLE_TIMEOUT,
@@ -25,7 +26,6 @@ import {
   readonlyMountArgs,
   stopContainer,
 } from './container-runtime.js';
-import { detectAuthMode } from './credential-proxy.js';
 import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
@@ -33,6 +33,12 @@ import {
   ATTACHMENTS_HOST_DIR,
   ATTACHMENTS_CONTAINER_DIR,
 } from './channels/telegram.js';
+
+/** Returns true if an OAuth token (Max plan) is configured in .env. */
+function detectOauthAvailable(): boolean {
+  const secrets = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN']);
+  return !!(secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.ANTHROPIC_AUTH_TOKEN);
+}
 
 // Sentinel markers for robust output parsing (must match agent-runner)
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
@@ -300,27 +306,31 @@ function buildVolumeMounts(
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+  isScheduledTask: boolean,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
 
-  // Route API traffic through the credential proxy (containers never see real secrets)
+  // Route API traffic through the credential proxy (containers never see real secrets).
+  // Scheduled tasks use the API key proxy; interactive sessions use the OAuth proxy
+  // (Claude Max plan) if available, otherwise fall back to the API key proxy.
+  const useOauth = !isScheduledTask && detectOauthAvailable();
+  const proxyPort = useOauth ? CREDENTIAL_PROXY_OAUTH_PORT : CREDENTIAL_PROXY_PORT;
   args.push(
     '-e',
-    `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`,
+    `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${proxyPort}`,
   );
 
-  // Mirror the host's auth method with a placeholder value.
+  // Mirror the selected auth method with a placeholder value.
   // API key mode: SDK sends x-api-key, proxy replaces with real key.
   // OAuth mode:   SDK exchanges placeholder token for temp API key,
   //               proxy injects real OAuth token on that exchange request.
-  const authMode = detectAuthMode();
-  if (authMode === 'api-key') {
-    args.push('-e', 'ANTHROPIC_API_KEY=placeholder');
-  } else {
+  if (useOauth) {
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
+  } else {
+    args.push('-e', 'ANTHROPIC_API_KEY=placeholder');
   }
 
   // Pass through optional third-party API keys
@@ -402,7 +412,7 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerArgs = buildContainerArgs(mounts, containerName, !!input.isScheduledTask);
 
   logger.debug(
     {

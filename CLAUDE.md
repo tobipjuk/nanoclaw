@@ -55,6 +55,19 @@ systemctl --user stop nanoclaw
 systemctl --user restart nanoclaw
 ```
 
+## Dual Credential Proxy (API vs Claude Max)
+
+At startup, NanoClaw runs two credential proxies:
+
+| Port | Auth mode | Used for |
+|------|-----------|----------|
+| 3001 (`CREDENTIAL_PROXY_PORT`) | API key | Scheduled tasks |
+| 3002 (`CREDENTIAL_PROXY_OAUTH_PORT`) | OAuth / Claude Max | Interactive sessions |
+
+`container-runner.ts` routes based on `isScheduledTask`: scheduled tasks always hit the API key proxy; interactive sessions hit the OAuth proxy (falls back to API key if no OAuth token is set).
+
+To enable: ensure `CLAUDE_CODE_OAUTH_TOKEN` is set in `.env`. Port overrides via env vars `CREDENTIAL_PROXY_PORT` / `CREDENTIAL_PROXY_OAUTH_PORT`.
+
 ## Troubleshooting
 
 **WhatsApp not connecting after upgrade:** WhatsApp is now a separate channel fork, not bundled in core. Run `/add-whatsapp` (or `git remote add whatsapp https://github.com/qwibitai/nanoclaw-whatsapp.git && git fetch whatsapp main && (git merge whatsapp/main || { git checkout --theirs package-lock.json && git add package-lock.json && git merge --continue; }) && npm run build`) to install it. Existing auth credentials and groups are preserved.

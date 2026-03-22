@@ -4,6 +4,7 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
+  CREDENTIAL_PROXY_OAUTH_PORT,
   GIT_AUTOPUSH_DIRS,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
@@ -59,6 +60,7 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
+import { readEnvFile } from './env.js';
 import { startGitAutopush } from './git-autopush.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
@@ -495,7 +497,16 @@ async function main(): Promise<void> {
   const proxyServer = await startCredentialProxy(
     CREDENTIAL_PROXY_PORT,
     PROXY_BIND_HOST,
+    'api-key',
   );
+
+  // Start OAuth proxy for interactive sessions (Max plan), if token is available
+  const oauthSecrets = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN']);
+  const hasOauthToken = !!(oauthSecrets.CLAUDE_CODE_OAUTH_TOKEN || oauthSecrets.ANTHROPIC_AUTH_TOKEN);
+  if (hasOauthToken) {
+    await startCredentialProxy(CREDENTIAL_PROXY_OAUTH_PORT, PROXY_BIND_HOST, 'oauth');
+    logger.info({ port: CREDENTIAL_PROXY_OAUTH_PORT }, 'OAuth credential proxy started (interactive sessions → Max plan)');
+  }
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
