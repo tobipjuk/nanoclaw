@@ -501,11 +501,23 @@ async function main(): Promise<void> {
   );
 
   // Start OAuth proxy for interactive sessions (Max plan), if token is available
-  const oauthSecrets = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN']);
-  const hasOauthToken = !!(oauthSecrets.CLAUDE_CODE_OAUTH_TOKEN || oauthSecrets.ANTHROPIC_AUTH_TOKEN);
+  const oauthSecrets = readEnvFile([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_AUTH_TOKEN',
+  ]);
+  const hasOauthToken = !!(
+    oauthSecrets.CLAUDE_CODE_OAUTH_TOKEN || oauthSecrets.ANTHROPIC_AUTH_TOKEN
+  );
   if (hasOauthToken) {
-    await startCredentialProxy(CREDENTIAL_PROXY_OAUTH_PORT, PROXY_BIND_HOST, 'oauth');
-    logger.info({ port: CREDENTIAL_PROXY_OAUTH_PORT }, 'OAuth credential proxy started (interactive sessions → Max plan)');
+    await startCredentialProxy(
+      CREDENTIAL_PROXY_OAUTH_PORT,
+      PROXY_BIND_HOST,
+      'oauth',
+    );
+    logger.info(
+      { port: CREDENTIAL_PROXY_OAUTH_PORT },
+      'OAuth credential proxy started (interactive sessions → Max plan)',
+    );
   }
 
   // Graceful shutdown handlers

@@ -36,7 +36,10 @@ import {
 
 /** Returns true if an OAuth token (Max plan) is configured in .env. */
 function detectOauthAvailable(): boolean {
-  const secrets = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN']);
+  const secrets = readEnvFile([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_AUTH_TOKEN',
+  ]);
   return !!(secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.ANTHROPIC_AUTH_TOKEN);
 }
 
@@ -317,7 +320,9 @@ function buildContainerArgs(
   // Scheduled tasks use the API key proxy; interactive sessions use the OAuth proxy
   // (Claude Max plan) if available, otherwise fall back to the API key proxy.
   const useOauth = !isScheduledTask && detectOauthAvailable();
-  const proxyPort = useOauth ? CREDENTIAL_PROXY_OAUTH_PORT : CREDENTIAL_PROXY_PORT;
+  const proxyPort = useOauth
+    ? CREDENTIAL_PROXY_OAUTH_PORT
+    : CREDENTIAL_PROXY_PORT;
   args.push(
     '-e',
     `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${proxyPort}`,
@@ -412,7 +417,11 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName, !!input.isScheduledTask);
+  const containerArgs = buildContainerArgs(
+    mounts,
+    containerName,
+    !!input.isScheduledTask,
+  );
 
   logger.debug(
     {
