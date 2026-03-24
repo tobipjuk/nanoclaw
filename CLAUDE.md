@@ -72,10 +72,10 @@ At startup, NanoClaw runs two credential proxies:
 
 | Port | Auth mode | Used for |
 |------|-----------|----------|
-| 3001 (`CREDENTIAL_PROXY_PORT`) | API key | Scheduled tasks |
-| 3002 (`CREDENTIAL_PROXY_OAUTH_PORT`) | OAuth / Claude Max | Interactive sessions |
+| 3001 (`CREDENTIAL_PROXY_PORT`) | API key | Fallback (no OAuth token) |
+| 3002 (`CREDENTIAL_PROXY_OAUTH_PORT`) | OAuth / Claude Max | All containers when OAuth is available |
 
-`container-runner.ts` routes based on `isScheduledTask`: scheduled tasks always hit the API key proxy; interactive sessions hit the OAuth proxy (falls back to API key if no OAuth token is set).
+`container-runner.ts` uses the OAuth proxy for all containers (interactive and scheduled) when `CLAUDE_CODE_OAUTH_TOKEN` is set in `.env`. Falls back to the API key proxy when no OAuth token is configured.
 
 To enable: ensure `CLAUDE_CODE_OAUTH_TOKEN` is set in `.env`. Port overrides via env vars `CREDENTIAL_PROXY_PORT` / `CREDENTIAL_PROXY_OAUTH_PORT`.
 

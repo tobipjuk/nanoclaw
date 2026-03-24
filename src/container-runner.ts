@@ -317,9 +317,9 @@ function buildContainerArgs(
   args.push('-e', `TZ=${TIMEZONE}`);
 
   // Route API traffic through the credential proxy (containers never see real secrets).
-  // Scheduled tasks use the API key proxy; interactive sessions use the OAuth proxy
-  // (Claude Max plan) if available, otherwise fall back to the API key proxy.
-  const useOauth = !isScheduledTask && detectOauthAvailable();
+  // When OAuth (Claude Max) is available, all containers use it — both interactive and
+  // scheduled tasks. Falls back to the API key proxy when no OAuth token is set.
+  const useOauth = detectOauthAvailable();
   const proxyPort = useOauth
     ? CREDENTIAL_PROXY_OAUTH_PORT
     : CREDENTIAL_PROXY_PORT;
