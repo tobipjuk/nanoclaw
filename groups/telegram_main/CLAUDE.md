@@ -23,9 +23,9 @@ Eight recurring tasks run in this group:
 
 | ID | Schedule | Model | Purpose |
 |----|----------|-------|---------|
-| `task-1773608334922-86ries` | `*/15 7-22 * * *` | Haiku | Calendar nudge — alerts before non-all-day events (7am–10pm only) |
 | `82f5431b77b831fed800ca63860f09de` | `30 7 * * 1-5` | default | Morning briefing — calendar, inbox, Todoist tasks |
 | `7cf7ac71-101e-43c3-9219-ac614c5d14ee` | `0 16 * * *` | Haiku | End-of-day check-in — overdue/due-today Todoist tasks |
+| `whoop-data-refresh` | `0,30 6-23 * * *` | Haiku | Whoop data cache refresh — writes to `nanoclaw-config/whoop-cache.json`, silent |
 | `whoop-midday-energy-check` | `30 12 * * 1-5` | Haiku | Whoop midday energy check |
 | `whoop-evening-winddown` | `0 21 * * *` | Haiku | Whoop evening wind-down |
 | `0348792a-a88a-4636-955f-737129113b95` | `0 17 * * 5` | Haiku | Weekly finance check-in |

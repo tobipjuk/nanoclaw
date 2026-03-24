@@ -18,8 +18,16 @@ Token rotation is automatic — each run saves the new refresh token to
 
 ## Fetch all metrics
 
+A background task refreshes `/workspace/extra/nanoclaw-config/whoop-cache.json` every 30 minutes (6am–11pm). Always read from cache — it is guaranteed to be recent. Only fall back to a live fetch if the cache is missing or older than 35 minutes.
+
 ```bash
-bash /home/node/.claude/skills/whoop/whoop-fetch.sh
+CACHE=/workspace/extra/nanoclaw-config/whoop-cache.json
+CACHE_AGE=$(( $(date +%s) - $(date -r "$CACHE" +%s 2>/dev/null || echo 0) ))
+if [[ -f "$CACHE" && $CACHE_AGE -lt 2100 ]]; then
+  cat "$CACHE"
+else
+  bash /home/node/.claude/skills/whoop/whoop-fetch.sh
+fi
 ```
 
 Output shape:
