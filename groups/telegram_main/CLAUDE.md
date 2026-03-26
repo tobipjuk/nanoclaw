@@ -19,10 +19,12 @@ When the user sends `/claude implement [proposal]`, use the `implement-proposal`
 
 ## Scheduled Tasks
 
-Eight recurring tasks run in this group:
+Ten recurring tasks run in this group:
 
 | ID | Schedule | Model | Purpose |
 |----|----------|-------|---------|
+| `outlook-to-todoist-sync` | `*/15 * * * *` | Opus | Outlook → Todoist sync — runs `run_outlook.sh`, silent exit, script handles error alerting |
+| `newsletter-calendar-sync` | `15 8 * * 1-5` | Opus | School newsletter → Family calendar sync — runs `run_newsletter.sh`, silent exit, script handles error alerting |
 | `82f5431b77b831fed800ca63860f09de` | `30 7 * * 1-5` | default | Morning briefing — calendar, inbox, Todoist tasks |
 | `7cf7ac71-101e-43c3-9219-ac614c5d14ee` | `0 16 * * *` | Haiku | End-of-day check-in — overdue/due-today Todoist tasks |
 | `whoop-data-refresh` | `0,30 6-23 * * *` | Haiku | Whoop data cache refresh — writes to `nanoclaw-config/whoop-cache.json`, silent |
@@ -34,7 +36,7 @@ Eight recurring tasks run in this group:
 
 The daily CTI briefing (`4e2b4e33-bf01-4db3-a862-f2f7bd81f496`) has been moved to Hex.
 
-Model column: `default` = Sonnet 4.6 (inherited), `Haiku` = claude-haiku-4-5-20251001. Set per-task in the `model` column of `scheduled_tasks` in SQLite.
+Model column: `default` = Sonnet 4.6 (inherited), `Haiku` = claude-haiku-4-5-20251001, `Opus` = claude-opus-4-6. Set per-task in the `model` column of `scheduled_tasks` in SQLite.
 
 ### Task health monitoring
 
