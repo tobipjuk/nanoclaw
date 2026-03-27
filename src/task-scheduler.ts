@@ -158,66 +158,97 @@ async function runTask(
   // Tasks are single-turn — no need to wait IDLE_TIMEOUT (30 min) for the
   // query loop to time out. A short delay handles any final MCP calls.
   const TASK_CLOSE_DELAY_MS = 10000;
-  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+  const MAX_ATTEMPTS = 2;
+  const RETRY_DELAY_MS = 30_000;
 
-  const scheduleClose = () => {
-    if (closeTimer) return; // already scheduled
-    closeTimer = setTimeout(() => {
-      logger.debug({ taskId: task.id }, 'Closing task container after result');
-      deps.queue.closeStdin(task.chat_jid);
-    }, TASK_CLOSE_DELAY_MS);
-  };
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
+    result = null;
+    error = null;
 
-  try {
-    const output = await runContainerAgent(
-      group,
-      {
-        prompt: task.prompt,
-        sessionId,
-        groupFolder: task.group_folder,
-        chatJid: task.chat_jid,
-        isMain,
-        isScheduledTask: true,
-        assistantName: ASSISTANT_NAME,
-        model: task.model || undefined,
-      },
-      (proc, containerName) =>
-        deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),
-      async (streamedOutput: ContainerOutput) => {
-        if (streamedOutput.result) {
-          result = streamedOutput.result;
-          // Do not forward result text to the user — scheduled tasks use send_message
-          // (via the nanoclaw MCP tool) for all user-visible content. The result text
-          // is an internal agent summary captured here for logging only.
-          scheduleClose();
-        }
-        if (streamedOutput.status === 'success') {
-          deps.queue.notifyIdle(task.chat_jid);
-          scheduleClose(); // Close promptly even when result is null (e.g. IPC-only tasks)
-        }
-        if (streamedOutput.status === 'error') {
-          error = streamedOutput.error || 'Unknown error';
-        }
-      },
-    );
+    const scheduleClose = () => {
+      if (closeTimer) return; // already scheduled
+      closeTimer = setTimeout(() => {
+        logger.debug({ taskId: task.id }, 'Closing task container after result');
+        deps.queue.closeStdin(task.chat_jid);
+      }, TASK_CLOSE_DELAY_MS);
+    };
 
-    if (closeTimer) clearTimeout(closeTimer);
+    try {
+      const output = await runContainerAgent(
+        group,
+        {
+          prompt: task.prompt,
+          sessionId,
+          groupFolder: task.group_folder,
+          chatJid: task.chat_jid,
+          isMain,
+          isScheduledTask: true,
+          assistantName: ASSISTANT_NAME,
+          model: task.model || undefined,
+        },
+        (proc, containerName) =>
+          deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),
+        async (streamedOutput: ContainerOutput) => {
+          if (streamedOutput.result) {
+            result = streamedOutput.result;
+            // Do not forward result text to the user — scheduled tasks use send_message
+            // (via the nanoclaw MCP tool) for all user-visible content. The result text
+            // is an internal agent summary captured here for logging only.
+            scheduleClose();
+          }
+          if (streamedOutput.status === 'success') {
+            deps.queue.notifyIdle(task.chat_jid);
+            scheduleClose(); // Close promptly even when result is null (e.g. IPC-only tasks)
+          }
+          if (streamedOutput.status === 'error') {
+            error = streamedOutput.error || 'Unknown error';
+          }
+        },
+      );
 
-    if (output.status === 'error') {
-      error = output.error || 'Unknown error';
-    } else if (output.result) {
-      // Result was already forwarded to the user via the streaming callback above
-      result = output.result;
+      if (closeTimer) clearTimeout(closeTimer);
+
+      if (output.status === 'error') {
+        error = output.error || 'Unknown error';
+      } else if (output.result) {
+        result = output.result;
+      }
+
+      logger.info(
+        { taskId: task.id, attempt, durationMs: Date.now() - startTime },
+        'Task completed',
+      );
+    } catch (err) {
+      if (closeTimer) clearTimeout(closeTimer);
+      error = err instanceof Error ? err.message : String(err);
+      logger.error({ taskId: task.id, attempt, error }, 'Task failed');
     }
 
-    logger.info(
-      { taskId: task.id, durationMs: Date.now() - startTime },
-      'Task completed',
-    );
-  } catch (err) {
-    if (closeTimer) clearTimeout(closeTimer);
-    error = err instanceof Error ? err.message : String(err);
-    logger.error({ taskId: task.id, error }, 'Task failed');
+    if (!error) break; // success — no retry needed
+
+    if (attempt < MAX_ATTEMPTS) {
+      logger.warn(
+        { taskId: task.id, attempt, error },
+        `Task failed, retrying in ${RETRY_DELAY_MS / 1000}s`,
+      );
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    }
+  }
+
+  // Notify the user if the task failed after all attempts
+  if (error) {
+    try {
+      await deps.sendMessage(
+        task.chat_jid,
+        `⚠️ *Scheduled task failed* — \`${task.id}\`\n\n${error.slice(0, 300)}`,
+      );
+    } catch (notifyErr) {
+      logger.error(
+        { taskId: task.id, notifyErr },
+        'Failed to send task failure notification',
+      );
+    }
   }
 
   const durationMs = Date.now() - startTime;
