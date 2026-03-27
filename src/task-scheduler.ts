@@ -186,8 +186,9 @@ async function runTask(
       async (streamedOutput: ContainerOutput) => {
         if (streamedOutput.result) {
           result = streamedOutput.result;
-          // Forward result to user (sendMessage handles formatting)
-          await deps.sendMessage(task.chat_jid, streamedOutput.result);
+          // Do not forward result text to the user — scheduled tasks use send_message
+          // (via the nanoclaw MCP tool) for all user-visible content. The result text
+          // is an internal agent summary captured here for logging only.
           scheduleClose();
         }
         if (streamedOutput.status === 'success') {
