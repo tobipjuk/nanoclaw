@@ -48,6 +48,12 @@ Paused tasks (do not re-enable without checking for conflicts):
 
 Other paused: `4e2b4e33` (daily CTI briefing — moved to Hex), task-nudge-morning/midday/evening/weekend (superseded).
 
+Deleted tasks (removed intentionally, do not recreate):
+
+| ID | Was | Reason |
+|----|-----|--------|
+| `task-1773608334922-86ries` | Calendar nudge (`*/15 * * * *`) — upcoming event alerts | Hit API usage limit 2026-03-24; removed during cleanup |
+
 Model column: `default` = Sonnet 4.6 (inherited), `Haiku` = claude-haiku-4-5-20251001, `Opus` = claude-opus-4-6.
 
 ### Task health monitoring
