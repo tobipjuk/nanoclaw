@@ -16,7 +16,6 @@ Use these to determine if a task is stale (last_run older than 1.5× interval):
 
 | key | label | interval |
 |-----|-------|----------|
-| `calendar-nudge` | Calendar nudge | 5 min |
 | `morning-briefing` | Morning briefing | 1 day (weekdays) |
 | `end-of-day-checkin` | End-of-day check-in | 1 day |
 | `daily-cti-briefing` | Daily CTI briefing | 1 day (weekdays) |
