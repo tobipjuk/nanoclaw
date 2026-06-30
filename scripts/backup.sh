@@ -41,6 +41,18 @@ tar -czf "$ARCHIVE" \
   /root/.config/nanoclaw/ \
   /root/nanoclaw/data/sessions/ \
   /root/nanoclaw-config/.env \
+  /var/lib/docker/volumes/nanoclaw_council-data \
+  /etc/ssh/sshd_config \
+  /etc/ssh/sshd_config.d \
+  /etc/sysctl.d/99-log-martians.conf \
+  /etc/apt/apt.conf.d/52unattended-upgrades-local \
+  /etc/ufw \
+  /etc/systemd/system/orion-onedrive-bisync.service \
+  /etc/systemd/system/orion-onedrive-bisync.timer \
+  /usr/local/bin/orion_onedrive_bisync.sh \
+  /srv/orion-rclone/rclone.conf \
+  /etc/systemd/system/backup-health-check.service \
+  /etc/systemd/system/backup-health-check.timer \
   2>/dev/null || true
 
 ARCHIVE_SIZE=$(du -sh "$ARCHIVE" | cut -f1)
