@@ -203,6 +203,9 @@ function buildVolumeMounts(
       settingsFile,
       JSON.stringify(
         {
+          // Default model for interactive turns and NULL-model scheduled tasks.
+          // Per-task overrides (task.model) still take precedence via the SDK.
+          model: 'claude-sonnet-5',
           env: {
             // Enable agent swarms (subagent orchestration)
             // https://code.claude.com/docs/en/agent-teams#orchestrate-teams-of-claude-code-sessions
