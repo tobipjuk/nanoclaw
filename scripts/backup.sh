@@ -35,6 +35,8 @@ log "Archiving critical files..."
 
 tar -czf "$ARCHIVE" \
   --ignore-failed-read \
+  --exclude='.venv' \
+  --exclude='__pycache__' \
   /root/nanoclaw/.env \
   /root/nanoclaw/store/messages.db \
   /root/nanoclaw/groups/ \
@@ -53,6 +55,12 @@ tar -czf "$ARCHIVE" \
   /srv/orion-rclone/rclone.conf \
   /etc/systemd/system/backup-health-check.service \
   /etc/systemd/system/backup-health-check.timer \
+  /root/foxess-monitor \
+  /etc/systemd/system/foxess-monitor.service \
+  /etc/systemd/system/foxess-monitor.timer \
+  /etc/systemd/system/foxess-heartbeat.service \
+  /etc/systemd/system/foxess-heartbeat.timer \
+  /usr/local/bin/foxess \
   2>/dev/null || true
 
 ARCHIVE_SIZE=$(du -sh "$ARCHIVE" | cut -f1)
